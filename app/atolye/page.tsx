@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {supabase} from "@/lib/supabaseClient";
 
 import { AtolyeAI } from '@/components/AtolyeAI/AtolyeAI';
+import Loading from "../loading";
 
  export default function AtolyePage() {
       const router = useRouter();
@@ -24,7 +25,7 @@ import { AtolyeAI } from '@/components/AtolyeAI/AtolyeAI';
     checkUser();
   }, [router]);
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) return <><Loading/></>;
     
     
     return <AtolyeAI />; }

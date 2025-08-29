@@ -21,18 +21,18 @@ export function FeaturedProjects() {
   const others = keys.slice(1, 5);
 
   return (
-    <section id="projects" className="py-20 bg-white">
+    <section id="projects" className="py-20 min-h-screen bg-white pt-11">
       <div className="container mx-auto px-6">
         {/* Başlık */}
-        <div className="text-center mb-12">
-          <h2 className="text-4xl font-serif font-bold">Popüler Kategoriler</h2>
-          <p className="text-lg text-gray-600 mt-2">
-            Mutfaklardan giyinme odalarına, en çok talep gören çözümlerimiz.
+          <div className="text-center mb-16">
+          <h2 className="text-5xl font-serif font-bold">Kategoriler</h2>
+          <p className="text-lg text-gray-600 mt-4 max-w-2xl mx-auto">
+            Aşağıda, çeşitli kategorilerdeki projelerimizi keşfedebilirsiniz.
           </p>
         </div>
 
         {/* Grid Yapısı */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch  ">
           {/* İlk büyük kart */}
           {first && (
             <ProjectCard
