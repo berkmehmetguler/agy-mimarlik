@@ -2,21 +2,48 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import {supabase} from "@/lib/supabaseClient";
+import type { Session } from "@supabase/supabase-js";
+import UserDropdown from "./UserDropDown";
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [session, setSession] = useState<any>(null); // Supabase session
   const router = useRouter();
 
   useEffect(() => {
+    // Scroll kontrolü
     const onScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
+
+    // Supabase session kontrolü
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+    };
+
+    checkSession();
+
+    // Session değişikliklerini dinle
+    const { data: listener } = supabase.auth.onAuthStateChange(( _event: string, session: Session | null) => {
+      setSession(session);
+    });
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   const go = (path: string) => {
     setIsMenuOpen(false);
     router.push(path);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/");
   };
 
   return (
@@ -34,7 +61,7 @@ export function Header() {
         </button>
 
         {/* Desktop Menü */}
-        <ul className="hidden md:flex items-center space-x-8">
+        <ul className="hidden md:flex items-center space-x-8 mx-auto">
           <li>
             <button
               onClick={() => go("/projects")}
@@ -61,6 +88,32 @@ export function Header() {
           </li>
         </ul>
 
+        {/* Sağ buton */}
+        <div className="hidden md:flex">
+          {session && (
+          <UserDropdown />
+          )}
+          {session ? (
+            <button
+              onClick={handleLogout}
+              className="px-6 py-2 bg-[#C0A062] text-white rounded-full font-medium hover:bg-[#A18E4A] transition"
+            >
+              Çıkış Yap
+            </button>
+          ) : (
+            <button
+              onClick={() => go("/login")}
+              className="px-6 py-2 bg-[#C0A062] text-white rounded-full font-medium hover:bg-[#A18E4A] transition"
+            >
+              Giriş Yap
+            </button>
+          )}
+        </div>
+
+     <div className="flex items-center">
+              {session && (
+          <UserDropdown />
+          )}
         {/* Mobil Menü Butonu */}
         <button
           className="md:hidden z-50"
@@ -70,9 +123,10 @@ export function Header() {
         >
           {isMenuOpen ? "✕" : "☰"}
         </button>
+     </div>
       </nav>
 
-      {/* Mobil Menü İçeriği */}
+      {/* Mobil Menü */}
       <div
         className={`absolute top-full left-0 w-full bg-[#F3F0E9] md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
           isMenuOpen ? "max-h-screen shadow-md" : "max-h-0"
@@ -102,6 +156,24 @@ export function Header() {
             >
               İletişim
             </button>
+          </li>
+          <li>
+          
+          {session ? (
+            <button
+              onClick={handleLogout}
+              className="px-6 py-2 bg-[#C0A062] text-white rounded-full font-medium hover:bg-[#A18E4A] transition"
+            >
+              Çıkış Yap
+            </button>
+          ) : (
+            <button
+              onClick={() => go("/login")}
+              className="px-6 py-2 bg-[#C0A062] text-white rounded-full font-medium hover:bg-[#A18E4A] transition"
+            >
+              Giriş Yap
+            </button>
+          )}
           </li>
         </ul>
       </div>
