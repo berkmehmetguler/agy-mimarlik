@@ -2,19 +2,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import {supabase} from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabaseClient";
+import Image from "next/image";
+import { Session } from "@supabase/supabase-js";
 
 export default function UserDropdown() {
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Mevcut session
     supabase.auth.getSession().then(res => setSession(res.data.session));
 
-    // Session değişikliklerini dinle
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
@@ -22,7 +22,6 @@ export default function UserDropdown() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // Dropdown dışında tıklayınca kapatma
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -37,12 +36,11 @@ export default function UserDropdown() {
     const { error } = await supabase.auth.signOut();
     if (!error) {
       setSession(null);
-      router.push("/"); // çıkış sonrası anasayfa
+      router.push("/");
     }
   };
 
   if (!session) {
-    // Giriş yapılmamışsa sadece Giriş Yap butonu
     return (
       <button
         onClick={() => router.push("/login")}
@@ -55,7 +53,9 @@ export default function UserDropdown() {
 
   return (
     <div className="relative " ref={dropdownRef}>
-      <img
+      <Image
+        width={40}
+        height={40}
         id="avatarButton"
         onClick={() => setOpen(!open)}
         className="w-10 h-10 me-4 rounded-full border-2 border-[#C0A062] object-center cursor-pointer"
