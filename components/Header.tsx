@@ -112,7 +112,7 @@ export function Header() {
 
      <div className="flex items-center">
               {session && (
-          <UserDropdown />
+     <div className="md:hidden">     <UserDropdown/></div>
           )}
         {/* Mobil Menü Butonu */}
         <button
