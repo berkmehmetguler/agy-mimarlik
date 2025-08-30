@@ -1,74 +1,75 @@
+// app/api/generate-text/route.ts
 import { NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
 
 interface GenerateTextRequest {
   prompt: string;
-  material: string;
-  dimensions: {
-    w: string;
-    h: string;
-    d: string;
+  material?: string;
+  dimensions?: {
+    w?: string;
+    h?: string;
+    d?: string;
   };
-}
-
-interface GeminiResponse {
-  text: string;
-}
-
-interface ImageResponse {
-  generatedImages: Array<{
-    image: {
-      imageBytes: string;
-    };
-  }>;
 }
 
 export async function POST(req: Request) {
   try {
     const { prompt, material, dimensions }: GenerateTextRequest = await req.json();
-    
+
     if (!prompt) {
-      return NextResponse.json(
-        { error: "Prompt is required" },
-        { status: 400 }
+      return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
+    }
+
+    // 🔹 Prompt'u detaylı hale getiriyoruz
+    const finalPrompt = `
+      A premium studio-quality photograph of a furniture piece. 
+      Description: "${prompt}", 
+      ${material ? `Material: "${material}",` : ""}
+      ${dimensions ? `Dimensions: Width ${dimensions?.w}cm, Height ${dimensions?.h}cm, Depth ${dimensions?.d}cm.` : ""}
+      Neutral background, photorealistic, detailed lighting, craftsmanship emphasized.
+    `;
+
+    // 🔹 ModelsLab API çağrısı
+    const response = await fetch("https://modelslab.com/api/v7/images/text-to-image", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        key: process.env.MODELSLAB_API_KEY!,
+        model_id: "imagen-4.0-ultra",
+        prompt: finalPrompt,
+        aspect_ratio: "1:1",
+        samples: "1",
+      }),
+    });
+
+    if (!response.ok) {
+      let errorResult;
+      try {
+        errorResult = await response.json();
+      } catch (e) {
+        errorResult = { error: { message: await response.text() } };
+      }
+      throw new Error(
+        `API Error (${response.status}): ${errorResult.error?.message || response.statusText || "Unknown error"}`
       );
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-    
-    const translationPrompt = `You are a world-class interior design assistant. Translate the following Turkish furniture description into a detailed, evocative, and photorealistic English prompt for an image generation AI. Combine all details into a cohesive sentence. Description: "${prompt}", Material: "${material}", Dimensions: "Width ${dimensions?.w}cm, Height ${dimensions?.h}cm, Depth ${dimensions?.d}cm". The final image must be a premium, studio-quality photograph of the single furniture piece against a neutral background, emphasizing its craftsmanship and materials.`;
-    
-    const tr = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: translationPrompt,
-    });
-    
-    const finalPrompt = (tr as GeminiResponse).text ?? prompt;
-    
-    const image = await ai.models.generateImages({
-      model: "imagen-4.0-generate-001",
-      prompt: finalPrompt,
-      config: {
-        numberOfImages: 1,
-        outputMimeType: "image/jpeg",
-        aspectRatio: "1:1",
-      },
-    });
-    
-    const base64 = (image as ImageResponse).generatedImages?.[0]?.image?.imageBytes;
-    
-    if (!base64) {
-      return NextResponse.json({ error: "No image" }, { status: 500 });
+    const result = await response.json();
+
+    console.log("ModelsLab response:", result);
+
+    // 🔹 JSON örneğine göre URL alıyoruz
+    const imageUrl = result?.links?.[0] || result?.proxy_links?.[0];
+
+    if (!imageUrl) {
+      return NextResponse.json({ error: "No image generated", raw: result }, { status: 500 });
     }
-    
+
     return NextResponse.json({
-      dataUrl: `data:image/jpeg;base64,${base64}`,
+      dataUrl: imageUrl, // artık base64 değil, direkt URL
     });
-  } catch (e: unknown) {
-    const errorMessage = e instanceof Error ? e.message : "Server error";
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });
   }
 }

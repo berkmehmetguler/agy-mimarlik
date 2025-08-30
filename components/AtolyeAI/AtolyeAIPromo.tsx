@@ -15,7 +15,7 @@ export function AtolyeAIPromo() {
             ATOLYE AI
           </Link>
         </h2>
-        <p className="text-lg text-gray-600 mt-4 max-w-3xl mx-auto">
+        <p className="text-lg text-gray-600 my-6 max-w-3xl mx-auto">
           Aklınızdaki mobilyayı tarif edin veya bir eskizini yükleyin. Yapay
           zeka destekli atölyemiz, fikrinizi saniyeler içinde görsel bir
           tasarıma dönüştürsün.

@@ -1,10 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { addWatermark } from '@/lib/watermark';
-import { fileToBase64 } from '@/lib/fileToBase64';
-import { BeforeAfterSlider } from './BeforeAfterSlider';
-import { QuoteRequestModal } from './QuoteRequestModal';
-import Image from 'next/image';
+
+import { useEffect, useState } from "react";
+import { addWatermark } from "@/lib/watermark";
+import { fileToBase64 } from "@/lib/fileToBase64";
+import { BeforeAfterSlider } from "./BeforeAfterSlider";
+import { QuoteRequestModal } from "./QuoteRequestModal";
 
 interface Dimensions {
   w: string;
@@ -13,17 +13,17 @@ interface Dimensions {
 }
 
 export function AtolyeAI() {
-  const [workflow, setWorkflow] = useState<'text'|'sketch'|null>(null);
+  const [workflow, setWorkflow] = useState<"text" | "sketch" | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingStep, setLoadingStep] = useState('');
-  const [generatedImageUrl, setGeneratedImageUrl] = useState('');
-  const [error, setError] = useState('');
-  const [prompt, setPrompt] = useState('');
-  const [dimensions, setDimensions] = useState<Dimensions>({ w: '', h: '', d: ''});
-  const [material, setMaterial] = useState('Ceviz');
-  const [sketchFile, setSketchFile] = useState<File|null>(null);
-  const [sketchPreviewUrl, setSketchPreviewUrl] = useState('');
-  const [sketchPrompt, setSketchPrompt] = useState('');
+  const [loadingStep, setLoadingStep] = useState("");
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [dimensions, setDimensions] = useState<Dimensions>({ w: "", h: "", d: "" });
+  const [material, setMaterial] = useState("Ceviz");
+  const [sketchFile, setSketchFile] = useState<File | null>(null);
+  const [sketchPreviewUrl, setSketchPreviewUrl] = useState<string | null>(null);
+  const [sketchPrompt, setSketchPrompt] = useState("");
   const [isQuoteModalOpen, setQuoteModalOpen] = useState(false);
 
   useEffect(() => {
@@ -32,80 +32,110 @@ export function AtolyeAI() {
     };
   }, [sketchPreviewUrl]);
 
+  const getSafeImageSrc = (src?: string | null) => {
+    if (!src) return null;
+    if (src.startsWith("http")) return src;
+    return null;
+  };
+
   const genFromText = async () => {
-    if (!prompt) { setError('Lütfen bir açıklama yazın.'); return; }
-    setIsLoading(true); setError(''); setGeneratedImageUrl('');
+    if (!prompt) {
+      setError("Lütfen bir açıklama yazın.");
+      return;
+    }
+    setIsLoading(true);
+    setError("");
+    setGeneratedImageUrl(null);
+
     try {
-      setLoadingStep('Fikriniz ilham panomuza ekleniyor...');
-      const r = await fetch('/api/generate-text', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, material, dimensions })
+      setLoadingStep("Fikriniz ilham panomuza ekleniyor...");
+      const r = await fetch("/api/generate-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, material, dimensions }),
       });
       const { dataUrl, error } = await r.json();
       if (error) throw new Error(error);
-      setLoadingStep('Son dokunuşlar yapılıyor...');
-      setGeneratedImageUrl(await addWatermark(dataUrl));
+
+      setLoadingStep("Son dokunuşlar yapılıyor...");
+      const safeUrl = getSafeImageSrc(dataUrl);
+      if (safeUrl) setGeneratedImageUrl(await addWatermark(safeUrl));
     } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : 'Hata';
-      setError(errorMessage);
+      setError(e instanceof Error ? e.message : "Hata oluştu.");
     } finally {
-      setIsLoading(false); setLoadingStep('');
+      setIsLoading(false);
+      setLoadingStep("");
     }
   };
 
   const genFromSketch = async () => {
-    if (!sketchFile) { setError('Lütfen bir eskiz dosyası yükleyin.'); return; }
-    setIsLoading(true); setError(''); setGeneratedImageUrl('');
+    if (!sketchFile) {
+      setError("Lütfen bir eskiz dosyası yükleyin.");
+      return;
+    }
+    setIsLoading(true);
+    setError("");
+    setGeneratedImageUrl(null);
+
     try {
       const { mimeType, data } = await fileToBase64(sketchFile);
-      setLoadingStep('Eskiziniz yorumlanıyor...');
-      const r = await fetch('/api/generate-sketch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mimeType, base64: data, notes: sketchPrompt })
+      setLoadingStep("Eskiziniz yorumlanıyor...");
+      const r = await fetch("/api/generate-sketch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mimeType, base64: data, notes: sketchPrompt }),
       });
       const { dataUrl, error } = await r.json();
       if (error) throw new Error(error);
-      setLoadingStep('Son dokunuşlar yapılıyor...');
-      setGeneratedImageUrl(await addWatermark(dataUrl));
+
+      setLoadingStep("Son dokunuşlar yapılıyor...");
+      const safeUrl = getSafeImageSrc(dataUrl);
+      if (safeUrl) setGeneratedImageUrl(await addWatermark(safeUrl));
     } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : 'Hata';
-      setError(errorMessage);
+      setError(e instanceof Error ? e.message : "Hata oluştu.");
     } finally {
-      setIsLoading(false); setLoadingStep('');
+      setIsLoading(false);
+      setLoadingStep("");
     }
   };
 
-  const workspace = (isSketch = false) => (
+  const workspace = (isSketchMode = false) => (
     <div className="w-full max-w-7xl mx-auto bg-white/50 shadow-2xl rounded-2xl backdrop-blur-lg p-4 sm:p-8">
       <QuoteRequestModal
         isOpen={isQuoteModalOpen}
         onClose={() => setQuoteModalOpen(false)}
-        imageUrl={generatedImageUrl}
+        imageUrl={generatedImageUrl || ""}
       />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        {/* Sol panel */}
         <div className="p-4 lg:p-8 rounded-lg space-y-6 h-full">
           <h3 className="text-3xl font-serif font-bold text-center lg:text-left">
-            {isSketch ? 'Eskizden Tasarım' : 'Yazıdan Tasarım'}
+            {isSketchMode ? "Eskizden Tasarım" : "Yazıdan Tasarım"}
           </h3>
 
-          {isSketch ? (
+          {isSketchMode ? (
             <>
               <div>
                 <label className="font-bold text-lg mb-2 block">1. Eskiz Dosyanızı Yükleyin</label>
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e)=>{
-                    const f=e.target.files?.[0]; 
-                    setSketchFile(f||null);
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    setSketchFile(f || null);
                     if (sketchPreviewUrl) URL.revokeObjectURL(sketchPreviewUrl);
                     if (f) setSketchPreviewUrl(URL.createObjectURL(f));
                   }}
                   className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#C0A062]/20 file:text-[#C0A062] hover:file:bg-[#C0A062]/30"
                 />
-                {sketchPreviewUrl && <Image src={sketchPreviewUrl} alt="Eskiz" className="mt-4 rounded-md max-h-32 shadow-md" />}
+                {sketchPreviewUrl && (
+                  <img
+                    src={getSafeImageSrc(sketchPreviewUrl) || undefined}
+                    alt="Eskiz"
+                    className="mt-4 rounded-md max-h-32 shadow-md"
+                  />
+                )}
               </div>
               <div>
                 <label className="font-bold text-lg mb-2 block">
@@ -113,7 +143,7 @@ export function AtolyeAI() {
                 </label>
                 <textarea
                   value={sketchPrompt}
-                  onChange={e => setSketchPrompt(e.target.value)}
+                  onChange={(e) => setSketchPrompt(e.target.value)}
                   className="w-full p-3 border rounded-md h-24 bg-transparent"
                 />
               </div>
@@ -124,7 +154,7 @@ export function AtolyeAI() {
                 <label className="font-bold text-lg mb-2 block">1. Mobilyanızı Tarif Edin</label>
                 <textarea
                   value={prompt}
-                  onChange={e => setPrompt(e.target.value)}
+                  onChange={(e) => setPrompt(e.target.value)}
                   className="w-full p-3 border rounded-md h-32 bg-transparent"
                   placeholder="Örn: 'İskandinav tarzı, 3 çekmeceli, masif ahşap bir TV ünitesi.'"
                 />
@@ -133,7 +163,7 @@ export function AtolyeAI() {
                 <label className="font-bold text-lg mb-2 block">2. Malzeme Seçin</label>
                 <select
                   value={material}
-                  onChange={e => setMaterial(e.target.value)}
+                  onChange={(e) => setMaterial(e.target.value)}
                   className="w-full p-3 border rounded-md bg-white/80"
                 >
                   <option>Ceviz</option>
@@ -149,21 +179,21 @@ export function AtolyeAI() {
                   <input
                     type="number"
                     value={dimensions.w}
-                    onChange={e => setDimensions({ ...dimensions, w: e.target.value })}
+                    onChange={(e) => setDimensions({ ...dimensions, w: e.target.value })}
                     placeholder="Genişlik"
                     className="w-1/3 p-3 border rounded-md bg-transparent"
                   />
                   <input
                     type="number"
                     value={dimensions.h}
-                    onChange={e => setDimensions({ ...dimensions, h: e.target.value })}
+                    onChange={(e) => setDimensions({ ...dimensions, h: e.target.value })}
                     placeholder="Yükseklik"
                     className="w-1/3 p-3 border rounded-md bg-transparent"
                   />
                   <input
                     type="number"
                     value={dimensions.d}
-                    onChange={e => setDimensions({ ...dimensions, d: e.target.value })}
+                    onChange={(e) => setDimensions({ ...dimensions, d: e.target.value })}
                     placeholder="Derinlik"
                     className="w-1/3 p-3 border rounded-md bg-transparent"
                   />
@@ -173,27 +203,37 @@ export function AtolyeAI() {
           )}
 
           <button
-            onClick={isSketch ? genFromSketch : genFromText}
+            onClick={isSketchMode ? genFromSketch : genFromText}
             disabled={isLoading}
             className="w-full bg-[#2D2D2D] text-white font-bold py-4 px-8 rounded-full text-lg hover:bg-opacity-90 disabled:bg-gray-400"
           >
-            {isLoading ? 'Oluşturuluyor...' : 'TASARIMI HAYATA GEÇİR'}
+            {isLoading ? "Oluşturuluyor..." : "TASARIMI HAYATA GEÇİR"}
           </button>
           {error && <p className="text-red-500 text-center">{error}</p>}
         </div>
 
+        {/* Sağ panel */}
         <div className="bg-gray-100 rounded-lg shadow-inner min-h-[500px] p-4 flex items-center justify-center">
           {isLoading ? (
             <div className="text-center">
               <div className="animate-spin h-10 w-10 mx-auto text-[#C0A062] border-4 border-gray-300 border-t-[#C0A062] rounded-full" />
-              <p className="mt-4 font-semibold">{loadingStep || 'Tasarımınız hazırlanıyor...'}</p>
+              <p className="mt-4 font-semibold">{loadingStep || "Tasarımınız hazırlanıyor..."}</p>
             </div>
           ) : generatedImageUrl ? (
             <div className="w-full">
-              {isSketch && sketchPreviewUrl ? (
-                <BeforeAfterSlider beforeImage={sketchPreviewUrl} afterImage={generatedImageUrl} />
+              {isSketchMode && sketchPreviewUrl ? (
+                <BeforeAfterSlider
+                  beforeImage={getSafeImageSrc(sketchPreviewUrl)!}
+                  afterImage={getSafeImageSrc(generatedImageUrl)!}
+                />
               ) : (
-                <Image src={generatedImageUrl} alt="Generated" className="rounded-lg shadow-xl w-full h-full object-contain" />
+                <img
+                height={800}
+                width={800}
+                  src={generatedImageUrl}
+                  alt="Generated"
+                  className="rounded-lg shadow-xl w-full h-full object-contain"
+                />
               )}
               <button
                 onClick={() => setQuoteModalOpen(true)}
@@ -210,33 +250,6 @@ export function AtolyeAI() {
           )}
         </div>
       </div>
-
-      {!workflow && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-1 min-h-[20vh] mt-8">
-          <div
-            onClick={() => setWorkflow('text')}
-            className="group relative min-h-[300px] flex items-center justify-center text-center p-8 cursor-pointer bg-cover bg-center"
-            style={{ backgroundImage: "url('https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-5184-620a-a6f9-bf3728c4a66a/raw?se=2025-08-30T01%3A50%3A45Z&sp=r&sv=2024-08-04&sr=b&scid=70f36c6d-2200-5f54-b953-9c429fe9e11f&skoid=b928fb90-500a-412f-a661-1ece57a7c318&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-08-30T00%3A09%3A27Z&ske=2025-08-31T00%3A09%3A27Z&sks=b&skv=2024-08-04&sig=vWU%2BiA98J0aFlLj/CYbco1bVnbGGb9l4MmVGBwVDw3g%3D')" }}
-          >
-            <div className="absolute inset-0 bg-black/60 group-hover:bg-black/40 transition-all" />
-            <div className="relative text-white z-10 group-hover:scale-105 transition-transform">
-              {/* <h3 className="text-4xl font-serif font-bold mb-3">Yazıdan Tasarım</h3>
-              <p>Fikrinizi kelimelere dökün.</p> */}
-            </div>
-          </div>
-          <div
-            onClick={() => setWorkflow('sketch')}
-            className="group relative min-h-[300px] flex items-center justify-center text-center p-8 cursor-pointer bg-cover bg-center"
-            style={{ backgroundImage: "url('https://images.unsplash.com/photo-1542315843-128a81509139?q=80&w=2070&auto=format&fit=crop')" }}
-          >
-            <div className="absolute inset-0 bg-black/60 group-hover:bg-black/40 transition-all" />
-            <div className="relative text-white z-10 group-hover:scale-105 transition-transform">
-              <h3 className="text-4xl font-serif font-bold mb-3">Eskizden Tasarım</h3>
-              <p>Çizimlerinize hayat verin.</p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 
@@ -245,9 +258,9 @@ export function AtolyeAI() {
       <div className="container mx-auto px-6">
         <div className="text-center mb-12">
           <h2 className="text-5xl font-serif font-bold">ATOLYE AI</h2>
-          <p className="text-lg text-gray-600 mt-2">{workflow ? 'Tasarım masanız hazır.' : 'Bir yöntem seçin.'}</p>
+          <p className="text-lg text-gray-600 mt-2">{workflow ? "Tasarım masanız hazır." : "Bir yöntem seçin."}</p>
         </div>
-        {workflow ? workspace(workflow === 'sketch') : workspace(false)}
+        {workspace(workflow === "sketch")}
       </div>
     </section>
   );
