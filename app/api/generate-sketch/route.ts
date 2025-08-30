@@ -1,81 +1,60 @@
+// app/api/generate-sketch/route.ts
 import { NextResponse } from "next/server";
-import { GoogleGenAI, Modality } from "@google/genai";
 
 interface GenerateSketchRequest {
-  mimeType: string;
   base64: string;
   notes?: string;
 }
 
-interface GenerateSketchResponse {
-  dataUrl?: string;
-  error?: string;
+async function callModelslab(base64: string, notes?: string) {
+  const finalPrompt = `
+    A premium studio-quality furniture render, based on the uploaded sketch.
+    ${notes ? `Extra notes: ${notes}` : ""}
+    Neutral background, photorealistic, detailed lighting, craftsmanship emphasized.
+  `;
+
+  return await fetch("https://modelslab.com/api/v7/images/image-to-image", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      key: process.env.MODELSLAB_API_KEY!,
+      model_id: "imagen-4.0-ultra",
+      prompt: finalPrompt,
+      init_image: base64,
+      aspect_ratio: "1:1",
+      samples: "1",
+      strength: 0.7,
+    }),
+  });
 }
 
-interface GeminiPart {
-  inlineData?: {
-    mimeType: string;
-    data: string;
-  };
-  text?: string;
-}
-
-interface GeminiContent {
-  candidates: Array<{
-    content: {
-      parts: GeminiPart[];
-    };
-  }>;
-}
-
-export async function POST(req: Request): Promise<NextResponse<GenerateSketchResponse>> {
+export async function POST(req: Request) {
   try {
-    const { mimeType, base64, notes }: GenerateSketchRequest = await req.json();
+    const { base64, notes }: GenerateSketchRequest = await req.json();
+    if (!base64) return NextResponse.json({ error: "Sketch (base64) is required" }, { status: 400 });
 
-    if (!mimeType || !base64) {
-      return NextResponse.json(
-        { error: "Sketch is required" }, 
-        { status: 400 }
-      );
+    let response = await callModelslab(base64, notes);
+
+    // Retry logic (1 retries)
+    if (!response.ok) {
+      await new Promise((r) => setTimeout(r, 10000));
+      response = await callModelslab(base64, notes);
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+    const result = await response.json();
+    console.error("ModelsLab (sketch) response:", result);
 
-    const parts: GeminiPart[] = [
-      { inlineData: { mimeType, data: base64 } },
-      {
-        text: `Render this sketch into a photorealistic, studio-quality image of a single piece of furniture against a neutral background. The style should be modern, clean, and emphasize high-quality craftsmanship.`,
-      },
-    ];
-
-    if (notes) {
-      parts.push({ text: `Additional user notes to incorporate: "${notes}"` });
+    if (!response.ok || result.status === 'error') {
+      return NextResponse.json({ error: result.message || 'Server error', raw: result }, { status: 500 });
     }
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image-preview",
-      contents: { parts },
-      config: { responseModalities: [Modality.IMAGE, Modality.TEXT] },
-    });
+    const imageUrl = result?.links?.[0] || result?.proxy_links?.[0];
+    if (!imageUrl) return NextResponse.json({ error: "No image generated", raw: result }, { status: 500 });
 
-    const content = (response as GeminiContent).candidates?.[0]?.content?.parts || [];
-    const inline = content.find((p: GeminiPart) => p.inlineData);
+    return NextResponse.json({ dataUrl: imageUrl });
 
-    if (!inline) {
-      return NextResponse.json(
-        { error: "No image generated" }, 
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      dataUrl: `data:${inline.inlineData!.mimeType};base64,${inline.inlineData!.data}`,
-    });
-  } catch (e: unknown) {
-    const errorMessage = e instanceof Error ? e.message : "Server error";
-    return NextResponse.json(
-      { error: errorMessage }, 
-      { status: 500 }
-    );
+  } catch (e: any) {
+    console.error("generate-sketch handler error:", e);
+    return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });
   }
 }

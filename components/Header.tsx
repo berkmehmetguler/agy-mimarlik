@@ -9,6 +9,8 @@ import { PiBrainBold } from "react-icons/pi";
 import { RiLoginBoxLine, RiMenu3Fill, RiCloseLargeFill } from "react-icons/ri";
 import Link from "next/link";
 
+import { RiCompasses2Line } from "react-icons/ri";
+
 type HeaderProps = {
   defaultBlack?: boolean;
 };
@@ -92,7 +94,7 @@ export function Header({ defaultBlack = false }: HeaderProps) {
                   : "text-black"
               } hover:text-[#C0A062]`}
             >
-              Projects
+              Projelerimiz
             </Link>
           </li>
           <li>
@@ -102,10 +104,17 @@ export function Header({ defaultBlack = false }: HeaderProps) {
               className="font-extrabold text-md flex text-[#C0A062] p-4 gap-2 rounded-full hover:decoration-[#6a5e46] underline hover:underline-offset-1 hover:scale-110 ease-in-out hover:opacity-80 transition-opacity"
             >
               <PiBrainBold
+              className="hidden"
                 title="ATOLYE AI"
                 size={25}
-                style={{ display: "flex" }}
+                
               />{" "}
+              <RiCompasses2Line
+               className="flex"
+                title="ATOLYE AI"
+                size={25}
+         
+              />
               ATOLYE AI
             </Link>
           </li>
