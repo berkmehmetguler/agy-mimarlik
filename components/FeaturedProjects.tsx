@@ -40,7 +40,7 @@ export function FeaturedProjects() {
               category={first.category}
               imageUrl={first.coverImage}
               onSelect={() => router.push(`/projects/${keys[0]}`)}
-              className="h-96 lg:h-full"
+              className="h-96 lg:h-full cursor-pointer"
             />
           )}
 
@@ -56,7 +56,7 @@ export function FeaturedProjects() {
                   category={p.category}
                   imageUrl={p.coverImage}
                   onSelect={() => router.push(`/projects/${k}`)}
-                  className="h-64 sm:h-auto sm:aspect-square"
+                  className="h-64 sm:h-auto sm:aspect-square cursor-pointer"
                 />
               );
             })}

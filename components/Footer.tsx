@@ -13,7 +13,7 @@ export function Footer({ onNavigate }: Props) {
       <div className="container mx-auto px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
           <div>
-            <h3 className="text-2xl font-serif font-bold text-white mb-4">AGY</h3>
+            <h3 className="text-3xl font-serif font-bold text-white mb-4">AGY</h3>
             <p className="max-w-xs mx-auto md:mx-0">
               Hayalinizdeki mekanı tasarlamak için buradayız. Bize ulaşın.
             </p>

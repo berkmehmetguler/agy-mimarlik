@@ -21,10 +21,16 @@
   }
 }
 
+html {
+  overflow-x: hidden;
+}
+
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: 'Playfair Display', Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
 }
 
 /* Custom scrollbar */

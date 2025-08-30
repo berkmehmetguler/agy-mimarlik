@@ -22,6 +22,7 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (err) {
+    console.error("Register API error:", err); // ← err artık kullanılıyor
     return NextResponse.json({ error: "Bir hata oluştu." }, { status: 500 });
   }
 }

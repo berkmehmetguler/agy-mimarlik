@@ -1,5 +1,7 @@
 'use client';
 
+import Image from 'next/image';
+import Link from 'next/link';
 import { useState } from 'react';
 
 type Props = {
@@ -51,11 +53,11 @@ Teşekkürler.`
             <input name="phone" placeholder="Telefon Numaranız" value={contactInfo.phone} onChange={handleChange} className="w-full p-3 border rounded-md" />
           </div>
           <div className="text-center">
-            {imageUrl && <img src={imageUrl} alt="Tasarım Önizleme" className="rounded-md shadow-md max-h-48 mx-auto mb-4" />}
+            {imageUrl && <Image src={imageUrl} alt="Tasarım Önizleme" className="rounded-md shadow-md max-h-48 mx-auto mb-4" />}
             {imageUrl && (
-              <a href={imageUrl} download="agy-atolye-ai-tasarim.jpg" className="inline-block w-full text-center bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-full text-sm hover:bg-gray-300 transition-all">
+              <Link href={imageUrl} download="agy-atolye-ai-tasarim.jpg" className="inline-block w-full text-center bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-full text-sm hover:bg-gray-300 transition-all">
                 Görseli İndir
-              </a>
+              </Link>
             )}
           </div>
         </div>

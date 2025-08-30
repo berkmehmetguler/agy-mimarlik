@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {supabase} from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabaseClient";
 import { FcGoogle } from "react-icons/fc";
-import Swal from 'sweetalert2'
+import Swal from "sweetalert2";
+import { FaEye } from "react-icons/fa";
+import { FaEyeSlash } from "react-icons/fa";
+import Link from "next/link";
 
 const LoginPage: React.FC = () => {
   const router = useRouter();
@@ -27,18 +30,21 @@ const LoginPage: React.FC = () => {
     });
 
     if (error) {
-      setMessage("E-mail veya Şifreniz Yanlış! " );
+      setMessage("E-mail veya Şifreniz Yanlış! ");
       console.log(error.message);
-
     } else {
       Swal.fire({
-        position: "bottom-end",
+        position: "center",
         icon: "success",
         title: "Başarıyla giriş yaptınız!",
         showConfirmButton: false,
-        timer: 1500
-        });
+        timer: 1500,
+        color: "#C0A062",
+        background: "#f3f0e9",
+      });
       router.push("/atolye"); // yönlendirme
+      console.log(data);
+
     }
   };
 
@@ -46,18 +52,20 @@ const LoginPage: React.FC = () => {
     <section className="relative h-screen pt-52 xs:pt-40 pb-16 md:pb-24 lg:pb-52 overflow-hidden">
       <p className="absolute top-0 right-0 mt-32 xs:mt-12 mr-5">
         <span> Hesabınız Yok Mu? </span>
-        <a
+        <Link
           href="/register"
           className="inline-block font-medium underline hover:text-[#C0A062]"
         >
           Kayıt Ol
-        </a>
+        </Link>
       </p>
 
       <div className="container mx-auto px-4 relative">
         <div className="max-w-sm mx-auto">
           <form onSubmit={handleLogin}>
-            <h3 className="text-4xl text-center font-medium mb-10">Giriş Yap</h3>
+            <h3 className="text-4xl text-center font-medium mb-10">
+              Giriş Yap
+            </h3>
 
             {message && (
               <p className="text-center text-red-500 mb-4">{message}</p>
@@ -82,19 +90,19 @@ const LoginPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setPasswordVisible(!passwordVisible)}
-                className="absolute top-1/2 right-0 transform -translate-y-1/2 mr-4"
+                className="absolute top-1/2 right-0 transform cursor-pointer -translate-y-1/2 mr-4 transition-all ease-in-out "
               >
-                👁
+                {passwordVisible ? <FaEyeSlash size={20} /> : <FaEye size={20} />}
               </button>
             </div>
 
             <div className="text-right mb-6">
-              <a
+              <Link
                 href="/forget-password"
                 className="text-sm underline font-medium hover:text-[#C0A062]"
               >
                 Forgot password?
-              </a>
+              </Link>
             </div>
 
             <button
@@ -104,15 +112,17 @@ const LoginPage: React.FC = () => {
               Login
             </button>
 
-            <span className="block text-center py-4 mx-auto text-gray-700">or</span>
+            <span className="block text-center py-4 mx-auto text-gray-700">
+              or
+            </span>
 
-            <a
-              href="#"
+            <Link
+              href="/register"
               className="inline-flex w-full py-3 px-6 items-center justify-center text-lg font-medium text-black hover:text-white border border-teal-900 hover:bg-gray-700 rounded-full transition duration-200"
             >
               <FcGoogle size={35} />
               <span className="ml-4">Continue with Google</span>
-            </a>
+            </Link>
           </form>
         </div>
       </div>

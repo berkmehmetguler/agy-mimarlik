@@ -25,7 +25,7 @@ const RegisterSection: React.FC = () => {
     setLoading(true);
     setMessage(null);
 
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
       options: {
@@ -42,7 +42,7 @@ const RegisterSection: React.FC = () => {
         title: "Kayıt başarılı! Lütfen e-postanızı doğrulayın.",
         showConfirmButton: false,
         timer: 1500,
-      },).then(() => {
+      }).then(() => {
         router.push("/login");
       });
     }

@@ -1,9 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export function Hero() {
-  const router = useRouter();
 
   return (
     <section
@@ -25,12 +24,12 @@ export function Hero() {
           Zanaatkar ellerde şekillenen, size özel tasarımlarla hayallerinizdeki
           mekanları gerçeğe dönüştürüyoruz.
         </p>
-        <button
-          onClick={() => router.push("/projects")}
-          className="bg-[#C0A062] text-[#2D2D2D] font-bold py-3 px-8 rounded-full text-lg hover:opacity-90 transition-all"
+        <Link
+          href="/projects"
+          className="bg-[#C0A062] text-[#2D2D2D] font-bold py-4 px-8 rounded-full text-lg hover:opacity-90 transition-all hover:shadow-lg hover:outline-1 hover:decoration-white hover:text-white inline-block"
         >
           Projelerimizi Keşfedin
-        </button>
+        </Link>
       </div>
     </section>
   );

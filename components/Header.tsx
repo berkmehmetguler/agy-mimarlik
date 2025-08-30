@@ -1,53 +1,59 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
 import UserDropdown from "./UserDropDown";
-
-import { RiMenu3Fill } from "react-icons/ri";
-import { RiCloseLargeFill } from "react-icons/ri";
+import { PiBrainBold } from "react-icons/pi";
+import { RiLoginBoxLine, RiMenu3Fill, RiCloseLargeFill } from "react-icons/ri";
 import Link from "next/link";
 
-export function Header() {
+type HeaderProps = {
+  defaultBlack?: boolean;
+};
+
+export function Header({ defaultBlack = false }: HeaderProps) {
+  const pathname = usePathname();
+  const isHomePage = pathname === "/";
   const [scrolled, setScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [session, setSession] = useState<any>(null); // Supabase session
+  const [session, setSession] = useState<Session | null>(null);
   const router = useRouter();
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Scroll kontrolü
     const onScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", onScroll);
 
-    // Supabase session kontrolü
     const checkSession = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       setSession(session);
     };
-
     checkSession();
 
-    // Session değişikliklerini dinle
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event: string, session: Session | null) => {
+      (_event, session) => {
         setSession(session);
       }
     );
 
+    // Menü dışında tıklama kontrolü
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+
     return () => {
       window.removeEventListener("scroll", onScroll);
+      document.removeEventListener("mousedown", handleClickOutside);
       listener.subscription.unsubscribe();
     };
   }, []);
-
-  const go = (path: string) => {
-    setIsMenuOpen(false);
-    router.push(path);
-  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -56,40 +62,64 @@ export function Header() {
 
   return (
     <header
+      ref={menuRef}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled || isMenuOpen ? "bg-[#F3F0E9] text-black shadow-md" : "bg-transparent"
+        scrolled || isMenuOpen || defaultBlack
+          ? "bg-[#F3F0E9] text-black shadow-md"
+          : "bg-transparent"
       }`}
     >
       <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
         <Link
           href={"/"}
-          className="text-4xl md:text-5xl font-serif font-bold cursor-pointer text-[#2D2D2D]"
+          className="text-4xl md:text-6xl font-serif font-bold cursor-pointer text-[#2D2D2D]"
+          onClick={() => setIsMenuOpen(false)}
         >
           AGY
         </Link>
 
         {/* Desktop Menü */}
-        <ul className="hidden md:flex items-center space-x-8 mx-auto underline-offset-2 underlime ">
+        <ul className="hidden lg:flex items-center space-x-8 mx-auto underline-offset-2 decoration-2 decoration-transparent hover:decoration-[#C0A062] transition-all uppercase">
           <li>
             <Link
               href="/projects"
-              className="font-bold text-lg tracking-widest  hover:text-[#C0A062] transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+              className={`font-bold text-lg tracking-widest transition-colors duration-150 easy-in-out ${
+                isHomePage
+                  ? scrolled
+                    ? "text-black"
+                    : "text-white"
+                  : "text-black"
+              } hover:text-[#C0A062]`}
             >
-              Projelerimiz
+              Projects
             </Link>
           </li>
           <li>
             <Link
               href="/atolye"
-              className="font-extrabold text-md  text-[#C0A062] p-4 hover:outline-2 rounded-full hover:outline-[#C0A062] hover:opacity-80 transition-opacity"
+              onClick={() => setIsMenuOpen(false)}
+              className="font-extrabold text-md flex text-[#C0A062] p-4 gap-2 rounded-full hover:decoration-[#6a5e46] underline hover:underline-offset-1 hover:scale-110 ease-in-out hover:opacity-80 transition-opacity"
             >
+              <PiBrainBold
+                title="ATOLYE AI"
+                size={25}
+                style={{ display: "flex" }}
+              />{" "}
               ATOLYE AI
             </Link>
           </li>
           <li>
             <Link
               href="/contact"
-              className="font-bold text-lg tracking-widest  hover:text-[#C0A062] transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+              className={`font-bold text-lg tracking-widest transition-colors duration-150 easy-in-out ${
+                isHomePage
+                  ? scrolled
+                    ? "text-black"
+                    : "text-white"
+                  : "text-black"
+              } hover:text-[#C0A062]`}
             >
               İletişim
             </Link>
@@ -97,7 +127,7 @@ export function Header() {
         </ul>
 
         {/* Sağ buton */}
-        <div className="hidden md:flex">
+        <div className="hidden lg:flex">
           {session && <UserDropdown />}
           {session ? (
             <Link
@@ -110,9 +140,10 @@ export function Header() {
           ) : (
             <Link
               href="/login"
-              className="px-6 py-2 text-bold text-xl bg-[#C0A062] text-white rounded-full font-medium hover:bg-[#A18E4A] transition-all"
+              onClick={() => setIsMenuOpen(false)}
+              className="flex bg-[#C0A062] text-[#2D2D2D] font-bold md:py-4 md:px-8 rounded-full text-lg uppercase hover:opacity-90 transition-all hover:shadow-lg hover:outline-1 hover:decoration-white hover:text-white items-center gap-2"
             >
-              Giriş Yap
+              <RiLoginBoxLine size={25} /> Giriş Yap
             </Link>
           )}
         </div>
@@ -120,25 +151,27 @@ export function Header() {
         <div className="flex items-center">
           {session && (
             <div className="md:hidden">
-              {" "}
               <UserDropdown />
             </div>
           )}
-          {/* Mobil Menü Butonu */}
           <button
-            className="md:hidden z-50"
+            className="lg:hidden z-50"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             aria-label="Menüyü aç/kapat"
             aria-expanded={isMenuOpen}
           >
-            {isMenuOpen ? <RiCloseLargeFill size={25}/> : <RiMenu3Fill size={25} className="p=4" />}
+            {isMenuOpen ? (
+              <RiCloseLargeFill size={25} />
+            ) : (
+              <RiMenu3Fill size={25} />
+            )}
           </button>
         </div>
       </nav>
 
       {/* Mobil Menü */}
       <div
-        className={`absolute top-full left-0 w-full bg-[#F3F0E9] md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
+        className={`absolute top-full left-0 w-full bg-[#F3F0E9] lg:hidden overflow-hidden transition-all duration-300 ease-in-out ${
           isMenuOpen ? "max-h-screen shadow-md" : "max-h-0"
         }`}
       >
@@ -146,6 +179,7 @@ export function Header() {
           <li>
             <Link
               href="/projects"
+              onClick={() => setIsMenuOpen(false)}
               className="text-lg hover:text-[#C0A062]"
             >
               Projelerimiz
@@ -154,14 +188,16 @@ export function Header() {
           <li>
             <Link
               href="/atolye"
-              className="text-lg font-bold text-[#C0A062] hover:opacity-80 "
+              onClick={() => setIsMenuOpen(false)}
+              className="text-lg font-bold text-[#C0A062] hover:opacity-80"
             >
               ATOLYE AI
             </Link>
           </li>
           <li>
             <Link
-            href="/contact"
+              href="/contact"
+              onClick={() => setIsMenuOpen(false)}
               className="text-lg hover:text-[#C0A062]"
             >
               İletişim
@@ -169,19 +205,24 @@ export function Header() {
           </li>
           <li>
             {session ? (
-              <button
-                onClick={handleLogout}
+              <Link
+                href="/"
+                onClick={() => {
+                  handleLogout();
+                  setIsMenuOpen(false);
+                }}
                 className="px-6 py-2 bg-[#C0A062] text-white rounded-full font-medium hover:bg-[#A18E4A] transition"
               >
                 Çıkış Yap
-              </button>
+              </Link>
             ) : (
-              <button
-                onClick={() => go("/login")}
+              <Link
+                href="/login"
+                onClick={() => setIsMenuOpen(false)}
                 className="px-6 py-2 bg-[#C0A062] text-white rounded-full font-medium hover:bg-[#A18E4A] transition"
               >
                 Giriş Yap
-              </button>
+              </Link>
             )}
           </li>
         </ul>

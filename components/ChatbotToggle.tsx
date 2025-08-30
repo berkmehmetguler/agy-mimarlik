@@ -7,7 +7,7 @@ export function ChatbotToggle({ onOpen }: Props) {
   return (
     <button
       onClick={open}
-      className="fixed bottom-5 right-5 z-40 bg-[#C0A062] text-[#2D2D2D] w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:bg-opacity-90 transition-all"
+      className="fixed bottom-5 right-5 z-40 bg-[#C0A062] text-white w-14 h-14 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-white hover:text-[#C0A062] hover:outline-1 decoration-[#C0A062] hover:bg-opacity-90 transition-all"
       aria-label="Sohbeti aç"
     >
       <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">

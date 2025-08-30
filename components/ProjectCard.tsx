@@ -2,6 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { generateWatermarkPattern } from "@/lib/watermark";
+import Image from "next/image";
+
 
 interface ProjectCardProps {
   title: string;
@@ -29,9 +31,11 @@ export function ProjectCard({
       } ${className}`}
     >
       {/* Görsel */}
-      <img
+      <Image
         src={imageUrl}
         alt={title}
+        width={400}
+        height={300}
         onLoad={() => setIsLoaded(true)}
         className={`w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500 ${
           isLoaded ? "opacity-100" : "opacity-0"

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { generateWatermarkPattern } from "@/lib/watermark";
+import Image from "next/image";
 
 interface ImageData {
   src: string;
@@ -76,7 +77,9 @@ export function ProjectGallery({ category }: ProjectGalleryProps) {
               className="group relative overflow-hidden rounded-lg shadow-lg cursor-pointer bg-gray-200"
               onClick={() => setSelected(i)}
             >
-              <img
+              <Image
+                width={400}
+                height={400}
                 src={img.src}
                 alt={img.alt}
                 className="w-full h-80 object-cover transform group-hover:scale-110 transition-transform duration-500"
@@ -109,7 +112,9 @@ export function ProjectGallery({ category }: ProjectGalleryProps) {
             className="relative text-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <img
+            <Image
+              width={800}
+              height={800}
               src={images[selected].src}
               alt={images[selected].alt}
               className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
@@ -120,7 +125,7 @@ export function ProjectGallery({ category }: ProjectGalleryProps) {
                 backgroundImage: `url(${pattern})`,
                 backgroundRepeat: "repeat",
               }}
-            />
+            ></div>
             {images[selected].ref && (
               <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-center py-2 rounded-b-lg select-all">
                 Referans Kodu:{" "}

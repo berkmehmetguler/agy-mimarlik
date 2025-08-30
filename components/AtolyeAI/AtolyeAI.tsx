@@ -4,6 +4,7 @@ import { addWatermark } from '@/lib/watermark';
 import { fileToBase64 } from '@/lib/fileToBase64';
 import { BeforeAfterSlider } from './BeforeAfterSlider';
 import { QuoteRequestModal } from './QuoteRequestModal';
+import Image from 'next/image';
 
 interface Dimensions {
   w: string;
@@ -104,7 +105,7 @@ export function AtolyeAI() {
                   }}
                   className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#C0A062]/20 file:text-[#C0A062] hover:file:bg-[#C0A062]/30"
                 />
-                {sketchPreviewUrl && <img src={sketchPreviewUrl} alt="Eskiz" className="mt-4 rounded-md max-h-32 shadow-md" />}
+                {sketchPreviewUrl && <Image src={sketchPreviewUrl} alt="Eskiz" className="mt-4 rounded-md max-h-32 shadow-md" />}
               </div>
               <div>
                 <label className="font-bold text-lg mb-2 block">
@@ -192,7 +193,7 @@ export function AtolyeAI() {
               {isSketch && sketchPreviewUrl ? (
                 <BeforeAfterSlider beforeImage={sketchPreviewUrl} afterImage={generatedImageUrl} />
               ) : (
-                <img src={generatedImageUrl} alt="Generated" className="rounded-lg shadow-xl w-full h-full object-contain" />
+                <Image src={generatedImageUrl} alt="Generated" className="rounded-lg shadow-xl w-full h-full object-contain" />
               )}
               <button
                 onClick={() => setQuoteModalOpen(true)}
@@ -211,16 +212,16 @@ export function AtolyeAI() {
       </div>
 
       {!workflow && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-1 min-h-[60vh] mt-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-1 min-h-[20vh] mt-8">
           <div
             onClick={() => setWorkflow('text')}
             className="group relative min-h-[300px] flex items-center justify-center text-center p-8 cursor-pointer bg-cover bg-center"
-            style={{ backgroundImage: "url('https://images.unsplash.com/photo-1593349480503-649c2643354c?q=80&w=1964&auto=format&fit=crop')" }}
+            style={{ backgroundImage: "url('https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-5184-620a-a6f9-bf3728c4a66a/raw?se=2025-08-30T01%3A50%3A45Z&sp=r&sv=2024-08-04&sr=b&scid=70f36c6d-2200-5f54-b953-9c429fe9e11f&skoid=b928fb90-500a-412f-a661-1ece57a7c318&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-08-30T00%3A09%3A27Z&ske=2025-08-31T00%3A09%3A27Z&sks=b&skv=2024-08-04&sig=vWU%2BiA98J0aFlLj/CYbco1bVnbGGb9l4MmVGBwVDw3g%3D')" }}
           >
             <div className="absolute inset-0 bg-black/60 group-hover:bg-black/40 transition-all" />
             <div className="relative text-white z-10 group-hover:scale-105 transition-transform">
-              <h3 className="text-4xl font-serif font-bold mb-3">Yazıdan Tasarım</h3>
-              <p>Fikrinizi kelimelere dökün.</p>
+              {/* <h3 className="text-4xl font-serif font-bold mb-3">Yazıdan Tasarım</h3>
+              <p>Fikrinizi kelimelere dökün.</p> */}
             </div>
           </div>
           <div

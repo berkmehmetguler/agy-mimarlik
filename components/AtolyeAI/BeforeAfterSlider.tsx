@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 
 type Props = { beforeImage: string; afterImage: string };
@@ -17,7 +18,7 @@ export function BeforeAfterSlider({ beforeImage, afterImage }: Props) {
       )}
 
       {/* Sonuç resmi */}
-      <img
+      <Image
         src={afterImage}
         alt="Tasarım"
         onLoad={() => setAfterLoaded(true)}
@@ -34,7 +35,7 @@ export function BeforeAfterSlider({ beforeImage, afterImage }: Props) {
             }}
           >
             {!beforeLoaded && <div className="absolute inset-0 bg-gray-300 animate-pulse" />}
-            <img
+            <Image
               src={beforeImage}
               alt="Eskiz"
               onLoad={() => setBeforeLoaded(true)}
