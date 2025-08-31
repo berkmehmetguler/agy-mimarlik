@@ -49,7 +49,7 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <section className="relative h-screen pt-52 xs:pt-40 pb-16 md:pb-24 lg:pb-52 overflow-hidden">
+    <section className="relative h-screen pt-52 xs:pt-40 pb-16 md:pb-24 lg:pb-52 bg-white overflow-hidden">
       <p className="absolute top-0 right-0 mt-32 xs:mt-12 mr-5">
         <span> Hesabınız Yok Mu? </span>
         <Link
@@ -61,7 +61,7 @@ const LoginPage: React.FC = () => {
       </p>
 
       <div className="container mx-auto px-4 relative">
-        <div className="max-w-sm mx-auto">
+        <div className="max-w-sm mx-auto text-gray-900">
           <form onSubmit={handleLogin}>
             <h3 className="text-4xl text-center font-medium mb-10">
               Giriş Yap

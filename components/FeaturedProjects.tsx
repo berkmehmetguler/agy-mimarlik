@@ -21,7 +21,7 @@ export function FeaturedProjects() {
   const others = keys.slice(1, 5);
 
   return (
-    <section id="projects" className="py-20 min-h-screen bg-white pt-11">
+    <section id="projects" className="py-20 min-h-screen bg-white text-gray-700 pt-11">
       <div className="container mx-auto px-6">
         {/* Başlık */}
           <div className="text-center mb-16">

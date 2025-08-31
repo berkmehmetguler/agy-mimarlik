@@ -18,7 +18,7 @@ export default function SiteLayout({
 }) {
   return (
     <html lang="tr">
-      <body>
+      <body className="flex flex-col min-h-screen">
         {/* Header is client */}
         <Header />
         <main>{children}</main>
