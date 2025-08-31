@@ -181,7 +181,14 @@ export function AtolyeAI() {
       
       // Watermark ekle
       const watermarkedUrl = await addWatermark(validatedUrl);
+      
+      // State'leri güncelle
       setGeneratedImageUrl(watermarkedUrl);
+      setResultUrl(dataUrl); // Orijinal URL'yi recent images için sakla
+      
+      console.log('✅ Text-to-image işlemi başarıyla tamamlandı');
+      console.log('🔗 Generated Image URL:', watermarkedUrl);
+      console.log('🔗 Result URL for recent images:', dataUrl);
       
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : "Bilinmeyen hata oluştu";
