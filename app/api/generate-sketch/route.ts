@@ -16,53 +16,7 @@ interface GenerateSketchResponse {
   error?: string;
 }
 
-// Helper function to process text-to-image API response
-async function processTextToImageResponse(response: Response): Promise<NextResponse<GenerateSketchResponse>> {
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    console.error('❌ ModelsLab API Error:', errorData);
-    throw new Error(errorData.error || `API request failed with status ${response.status}`);
-  }
 
-  const responseText = await response.text();
-  console.log('📄 ModelsLab API Raw Response:', responseText);
-  
-  let data;
-  try {
-    data = JSON.parse(responseText);
-    console.log('✅ Parsed JSON Response:', JSON.stringify(data, null, 2));
-  } catch (parseError) {
-    console.error('❌ Failed to parse JSON response:', parseError);
-    throw new Error('Invalid JSON response from API');
-  }
-  
-  // Check for different possible response formats
-  let imageUrl;
-  if (data.output && data.output.length > 0) {
-    imageUrl = data.output[0];
-    console.log('✅ Found image URL in output array:', imageUrl);
-  } else if (data.images && data.images.length > 0) {
-    imageUrl = data.images[0];
-    console.log('✅ Found image URL in images array:', imageUrl);
-  } else if (data.url) {
-    imageUrl = data.url;
-    console.log('✅ Found image URL in url field:', imageUrl);
-  } else if (data.image) {
-    imageUrl = data.image;
-    console.log('✅ Found image URL in image field:', imageUrl);
-  } else {
-    console.error('❌ No image URL found in response. Available fields:', Object.keys(data));
-    console.error('❌ Full response:', JSON.stringify(data, null, 2));
-    return NextResponse.json({ error: "No image generated" }, { status: 500 });
-  }
-  
-  // Return the image URL directly
-  console.log('✅ Returning fallback image URL:', imageUrl);
-  
-  return NextResponse.json({
-    dataUrl: imageUrl,
-  });
-}
 
 // Simple in-memory rate limiting (for production, use Redis or database)
 const requestTracker = new Map<string, { count: number; lastRequest: number }>();
@@ -119,7 +73,7 @@ export async function POST(req: Request): Promise<NextResponse<GenerateSketchRes
     }
 
     // Use user's prompt directly (notes parameter)
-    let prompt = notes || "Create a photorealistic furniture design";
+    const prompt = notes || "Create a photorealistic furniture design";
 
     // Translate Turkish to English if needed
     const originalPrompt = prompt;

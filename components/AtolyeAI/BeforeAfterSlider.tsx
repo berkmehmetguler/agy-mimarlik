@@ -32,7 +32,7 @@ export function BeforeAfterSlider({ beforeImage, afterImage }: Props) {
         height={600}
         unoptimized
         onLoad={() => setAfterLoaded(true)}
-        onError={(e) => {
+        onError={() => {
           console.error('❌ After image failed to load:', afterImage);
           setAfterLoaded(false);
         }}
@@ -56,7 +56,7 @@ export function BeforeAfterSlider({ beforeImage, afterImage }: Props) {
               height={600}
               unoptimized
               onLoad={() => setBeforeLoaded(true)}
-              onError={(e) => {
+              onError={() => {
                 console.error('❌ Before image failed to load:', beforeImage);
                 setBeforeLoaded(false);
               }}

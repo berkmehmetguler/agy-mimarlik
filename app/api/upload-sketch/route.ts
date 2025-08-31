@@ -63,7 +63,7 @@ export async function POST(req: Request): Promise<NextResponse<UploadSketchRespo
       uploadStream.end(buffer);
     });
     
-    const uploadedImage = result as any;
+    const uploadedImage = result as { secure_url: string; public_id: string };
     console.log('✅ Sketch uploaded successfully to Cloudinary');
     console.log('🔗 Public URL:', uploadedImage.secure_url);
     

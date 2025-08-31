@@ -54,7 +54,7 @@ export function AtolyeAI() {
   const [sketchPrompt, setSketchPrompt] = useState("");
   const [isQuoteModalOpen, setQuoteModalOpen] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+
   const [imageLoadError, setImageLoadError] = useState<string | null>(null);
 
   const [recentImages, setRecentImages] = useState<string[]>([]); // Son oluşturulan görseller
@@ -201,10 +201,7 @@ export function AtolyeAI() {
     }
   };
 
-  const [aspectRatio, setAspectRatio] = useState('1:1');
-  const [sketchStrength, setSketchStrength] = useState('0.45');
-  const [sketchGuidanceScale, setSketchGuidanceScale] = useState('7.5');
-  const [sketchSteps, setSketchSteps] = useState('31');
+
 
 
   const genFromSketch = async () => {
@@ -229,14 +226,14 @@ export function AtolyeAI() {
       const r = await fetch('/api/generate-sketch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+                body: JSON.stringify({
           mimeType, 
           base64: data, 
           notes: sketchPrompt, 
-          aspectRatio,
-          strength: sketchStrength,
-          guidanceScale: sketchGuidanceScale,
-          numInferenceSteps: sketchSteps
+          aspectRatio: "1:1",
+          strength: "0.45",
+          guidanceScale: "7.5",
+          numInferenceSteps: "31"
         })
       });
       
@@ -676,7 +673,7 @@ export function AtolyeAI() {
                         height={96}
                         className="object-cover w-full h-full"
                         unoptimized
-                        onError={(e) => {
+                        onError={() => {
                           console.error('❌ Recent image failed to load:', img);
                           // Temporarily disabled auto-removal due to SSL issues
                           // setRecentImages((prev) => prev.filter((_, idx) => idx !== i));
