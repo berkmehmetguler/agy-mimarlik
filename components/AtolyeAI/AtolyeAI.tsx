@@ -13,13 +13,8 @@ import { QuoteRequestModal } from "./QuoteRequestModal";
 import { FcMultipleInputs } from "react-icons/fc";
 import { MdOutlineFileDownload } from "react-icons/md";
 
-
 import Image from "next/image";
 import Link from "next/link";
-
-
-
-
 
 const MATERIALS = [
   { name: "Ceviz", img: "/materials/ceviz.png" },
@@ -33,11 +28,6 @@ const MATERIALS = [
   { name: "MDF", img: "/materials/mdf.png" },
 ];
 
-
-
-
-
-
 interface Dimensions {
   w: string;
   h: string;
@@ -45,7 +35,7 @@ interface Dimensions {
 }
 
 export function AtolyeAI() {
-  const [workflow, setWorkflow] = useState<"text" | "sketch" | null>("text");
+  const [workflow, setWorkflow] = useState<"text" | "sketch" | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState("");
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(
@@ -69,19 +59,7 @@ export function AtolyeAI() {
   const [recentImages, setRecentImages] = useState<string[]>([]); // Son oluşturulan görseller
   // Eskiz önizleme URL'si değiştiğinde eski URL'yi temizle
 
-  useEffect(() => {
-    return () => {
-      if (sketchPreviewUrl) URL.revokeObjectURL(sketchPreviewUrl);
-    };
-  }, [sketchPreviewUrl]);
-
-  // Her yeni oluşturulan görseli diziye ekle
-  useEffect(() => {
-    if (generatedImageUrl) {
-      setRecentImages((prev) => [generatedImageUrl, ...prev.slice(0, 9)]); // En fazla 10 tane tut
-    }
-  }, [generatedImageUrl]);
-
+  
   useEffect(() => {
     if (resultUrl) {
       setRecentImages((prev) => [resultUrl, ...prev.slice(0, 9)]);
@@ -102,7 +80,6 @@ export function AtolyeAI() {
     setIsLoading(true);
     setError("");
     setGeneratedImageUrl(null);
-
     try {
       setLoadingStep("Fikriniz ilham panomuza ekleniyor...");
       const r = await fetch("/api/generate-text", {
@@ -124,39 +101,42 @@ export function AtolyeAI() {
     }
   };
 
+  const [aspectRatio, setAspectRatio] = useState('1:1');
+  const [sketchStrength, setSketchStrength] = useState('0.45');
+  const [sketchGuidanceScale, setSketchGuidanceScale] = useState('7.5');
+  const [sketchSteps, setSketchSteps] = useState('31');
+
+
   const genFromSketch = async () => {
-    if (!sketchFile) {
-      alert("Lütfen bir eskiz dosyası yükleyin");
-      return;
-    }
-
-    setLoading(true);
-    setResultUrl(null);
-
+    if (!sketchFile) { setError('Lütfen bir eskiz dosyası yükleyin.'); return; }
+    if (!sketchPrompt.trim()) { setError('Lütfen tasarım açıklaması yazın.'); return; }
+    setIsLoading(true); setError(''); setGeneratedImageUrl('');
     try {
-      // ✅ base64'e çeviriyoruz
-      const { dataUrl } = await fileToBase64(sketchFile);
-
-      // ✅ API'ye gönderiyoruz
-      const r = await fetch("/api/generate-sketch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          base64: dataUrl, // artık "data:image/png;base64,..." formatında
-          notes: sketchPrompt,
-        }),
+      const { mimeType, data } = await fileToBase64(sketchFile);
+      setLoadingStep('Eskiziniz AI ile işleniyor...');
+      const r = await fetch('/api/generate-sketch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          mimeType, 
+          base64: data, 
+          notes: sketchPrompt, 
+          aspectRatio,
+          strength: sketchStrength,
+          guidanceScale: sketchGuidanceScale,
+          numInferenceSteps: sketchSteps
+        })
       });
-
-      const data = await r.json();
-
-      if (!r.ok) throw new Error(data.error || "Sketch generation failed");
-
-      setResultUrl(data.dataUrl);
-    } catch (e: any) {
-      console.error("Sketch error:", e);
-      alert(e.message || "Bir hata oluştu");
+      const { dataUrl, error } = await r.json();
+      if (error) throw new Error(error);
+      setLoadingStep('Görsel işleniyor...');
+      setGeneratedImageUrl(await addWatermark(dataUrl));
+      setResultUrl(dataUrl);
+    } catch (e:unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Hata';
+      setError(errorMessage);
     } finally {
-      setLoading(false);
+      setIsLoading(false); setLoadingStep('');
     }
   };
 
@@ -193,13 +173,15 @@ export function AtolyeAI() {
                   className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#C0A062]/20 file:text-[#C0A062] hover:file:bg-[#C0A062]/30"
                 />
                 {sketchPreviewUrl && (
-                  <Image
-                    height={200}
-                    width={200}
-                    src={sketchPreviewUrl}
-                    alt="Eskiz"
-                    className="mt-4 rounded-md max-h-32 shadow-md"
-                  />
+                  <div className="mt-4 rounded-md shadow-md overflow-hidden max-w-xs">
+                    <Image
+                      src={sketchPreviewUrl}
+                      alt="Eskiz"
+                      width={400}
+                      height={400}
+                      className="w-full h-auto object-contain"
+                    />
+                  </div>
                 )}
               </div>
               <div>
@@ -227,31 +209,45 @@ export function AtolyeAI() {
                   placeholder="Örn: 'İskandinav tarzı, 3 çekmeceli, masif ahşap bir TV ünitesi.'"
                 />
                 <div className="mt-2 text-sm text-gray-600 bg-yellow-50 border-l-4 border-yellow-400 p-2 rounded">
-                <strong>İpucu:</strong> Tasarımınızı ne kadar detaylı ve açıklayıcı tarif ederseniz, o kadar iyi sonuçlar elde edersiniz. Örneğin; stil, renk, malzeme, ölçü gibi detayları ekleyebilirsiniz.
-              </div>
+                  <strong>İpucu:</strong> Tasarımınızı ne kadar detaylı ve
+                  açıklayıcı tarif ederseniz, o kadar iyi sonuçlar elde
+                  edersiniz. Örneğin; stil, renk, malzeme, ölçü gibi detayları
+                  ekleyebilirsiniz.
+                </div>
               </div>
               <div>
-  <label className="font-bold text-lg mb-2 block">
-    2. Malzeme Seçin <span className="text-gray-500 font-normal">(Kartela)</span>
-  </label>
-  <div className="flex flex-row gap-2 overflow-scroll mb-4">
-    {MATERIALS.map((mat) => (
-      <button
-        key={mat.name}
-        type="button"
-        onClick={() => setMaterial(mat.name)}
-        className={`flex items-center max-w-md gap-3 p-2 mb-2 rounded-lg border transition
-          ${material === mat.name ? "border-[#C0A062] bg-[#FFF8E1]" : "border-gray-200 bg-white/80"}
+                <label className="font-bold text-lg mb-2 block">
+                  2. Malzeme Seçin{" "}
+                  <span className="text-gray-500 font-normal">(Kartela)</span>
+                </label>
+                <div className="flex flex-row gap-2 overflow-scroll mb-4">
+                  {MATERIALS.map((mat) => (
+                    <button
+                      key={mat.name}
+                      type="button"
+                      onClick={() => setMaterial(mat.name)}
+                      className={`flex items-center max-w-md gap-3 p-2 mb-2 rounded-lg border transition
+          ${
+            material === mat.name
+              ? "border-[#C0A062] bg-[#FFF8E1]"
+              : "border-gray-200 bg-white/80"
+          }
           hover:border-[#C0A062]`}
-      >
-        <span className="w-10 h-10 rounded-full overflow-hidden border border-gray-300 flex items-center justify-center bg-white">
-          <Image src={mat.img} alt={mat.name} width={40} height={40} className="object-cover w-10 h-10" />
-        </span>
-        <span className="font-semibold">{mat.name}</span>
-      </button>
-    ))}
-  </div>
-</div>
+                    >
+                      <span className="w-10 h-10 rounded-full overflow-hidden border border-gray-300 flex items-center justify-center bg-white">
+                        <Image
+                          src={mat.img}
+                          alt={mat.name}
+                          width={40}
+                          height={40}
+                          className="object-cover w-10 h-10"
+                        />
+                      </span>
+                      <span className="font-semibold">{mat.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div>
                 <label className="font-bold text-lg mb-2 block">
                   3. Ölçüler (cm)
@@ -317,11 +313,11 @@ export function AtolyeAI() {
                 />
               ) : (
                 <Image
-                  src={generatedImageUrl}
+                  src={generatedImageUrl!}
                   alt="Oluşturulan Tasarım"
                   width={800}
                   height={800}
-                  className="w-full h-full object-contain rounded-lg shadow-xl"
+                  className="w-full  h-auto object-contain rounded-lg shadow-xl"
                 />
               )}
               <div className="mt-4 md:flex justify-center text-center gap-5">
@@ -332,7 +328,10 @@ export function AtolyeAI() {
                   download
                   className="w-full mt-4 font-bold py-3 px-4 rounded-full text-lg inline-block text-center hover:bg-opacity-90 bg-[#2D2D2D]  text-white hover:bg-gray-100 hover:text-black outline-1 hover:outline-black cursor-pointer"
                 >
-                 < MdOutlineFileDownload size={23} className="inline mr-2 -mt-1" />
+                  <MdOutlineFileDownload
+                    size={23}
+                    className="inline mr-2 -mt-1"
+                  />
                   Tasarımı İndir
                 </Link>
                 <Link
@@ -408,7 +407,7 @@ export function AtolyeAI() {
                         tabIndex={0}
                         onClick={(e) => e.stopPropagation()}
                       >
-                       <MdOutlineFileDownload size={16} />
+                        <MdOutlineFileDownload size={16} />
                       </Link>
                     </>
                   ) : (

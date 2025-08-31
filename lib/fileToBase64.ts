@@ -1,14 +1,18 @@
 // lib/fileToBase64.ts
 export const fileToBase64 = (
   file: File
-): Promise<{ mimeType: string; dataUrl: string }> =>
+): Promise<{ mimeType: string; data: string }> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
-      const result = reader.result as string; // örn: "data:image/png;base64,AAAA..."
-      const mimeType = result.split(";")[0].split(":")[1];
-      resolve({ mimeType, dataUrl: result }); // 🔑 tam dataUrl dönüyoruz
+      const result = reader.result as string;
+      // "data:image/png;base64,XXXX" → sadece "XXXX" kısmını al
+      const base64 = result.split(",")[1];
+      resolve({
+        mimeType: file.type,
+        data: base64,
+      });
     };
-    reader.onerror = (err) => reject(err);
+    reader.onerror = reject;
     reader.readAsDataURL(file);
   });

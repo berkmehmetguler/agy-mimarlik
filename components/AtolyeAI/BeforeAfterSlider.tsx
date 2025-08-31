@@ -21,6 +21,8 @@ export function BeforeAfterSlider({ beforeImage, afterImage }: Props) {
       <Image
         src={afterImage}
         alt="Tasarım"
+        width={800}
+        height={600}
         onLoad={() => setAfterLoaded(true)}
         className={`w-full h-full object-contain rounded-lg shadow-xl transition-opacity duration-500 ${afterLoaded ? 'opacity-100' : 'opacity-0'}`}
       />
@@ -38,9 +40,12 @@ export function BeforeAfterSlider({ beforeImage, afterImage }: Props) {
             <Image
               src={beforeImage}
               alt="Eskiz"
+              width={800}
+              height={600}
               onLoad={() => setBeforeLoaded(true)}
-              className={`w-full h-full object-contain rounded-lg shadow-xl transition-opacity duration-500 ${beforeLoaded ? 'opacity-100' : 'opacity-0'}`}
-            />
+             className={`w-full h-full object-contain rounded-lg shadow-xl transition-opacity duration-500 ${afterLoaded ? 'opacity-100' : 'opacity-0'}`}
+      />  
+
           </div>
 
           {/* Kaydırıcı çizgisi */}
