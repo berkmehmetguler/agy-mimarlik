@@ -10,6 +10,13 @@ export function BeforeAfterSlider({ beforeImage, afterImage }: Props) {
   const [afterLoaded, setAfterLoaded] = useState(false);
   const [beforeLoaded, setBeforeLoaded] = useState(false);
 
+  console.log('🎯 BeforeAfterSlider rendered with:', {
+    beforeImage: beforeImage ? 'PROVIDED' : 'MISSING',
+    afterImage: afterImage ? 'PROVIDED' : 'MISSING',
+    beforeImageLength: beforeImage?.length || 0,
+    afterImageLength: afterImage?.length || 0
+  });
+
   return (
     <div className="relative w-full h-full group select-none">
       {/* Arka plan placeholder */}
@@ -23,7 +30,12 @@ export function BeforeAfterSlider({ beforeImage, afterImage }: Props) {
         alt="Tasarım"
         width={800}
         height={600}
+        unoptimized
         onLoad={() => setAfterLoaded(true)}
+        onError={(e) => {
+          console.error('❌ After image failed to load:', afterImage);
+          setAfterLoaded(false);
+        }}
         className={`w-full h-full object-contain rounded-lg shadow-xl transition-opacity duration-500 ${afterLoaded ? 'opacity-100' : 'opacity-0'}`}
       />
 
@@ -42,9 +54,14 @@ export function BeforeAfterSlider({ beforeImage, afterImage }: Props) {
               alt="Eskiz"
               width={800}
               height={600}
+              unoptimized
               onLoad={() => setBeforeLoaded(true)}
-             className={`w-full h-full object-contain rounded-lg shadow-xl transition-opacity duration-500 ${afterLoaded ? 'opacity-100' : 'opacity-0'}`}
-      />  
+              onError={(e) => {
+                console.error('❌ Before image failed to load:', beforeImage);
+                setBeforeLoaded(false);
+              }}
+              className={`w-full h-full object-contain rounded-lg shadow-xl transition-opacity duration-500 ${beforeLoaded ? 'opacity-100' : 'opacity-0'}`}
+            />
 
           </div>
 

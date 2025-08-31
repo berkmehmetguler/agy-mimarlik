@@ -55,21 +55,91 @@ export function AtolyeAI() {
   const [isQuoteModalOpen, setQuoteModalOpen] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState<string | null>(null);
 
   const [recentImages, setRecentImages] = useState<string[]>([]); // Son oluşturulan görseller
   // Eskiz önizleme URL'si değiştiğinde eski URL'yi temizle
 
   
   useEffect(() => {
+    console.log('🔍 Recent Images Debug:', {
+      resultUrl,
+      recentImages: recentImages.length,
+      adding: !!resultUrl
+    });
+    
     if (resultUrl) {
-      setRecentImages((prev) => [resultUrl, ...prev.slice(0, 9)]);
+      setRecentImages((prev) => {
+        const newImages = [resultUrl, ...prev.slice(0, 9)];
+        console.log('✅ Updated recent images:', newImages);
+        return newImages;
+      });
     }
   }, [resultUrl]);
 
   const getSafeImageSrc = (src?: string | null) => {
-    if (!src) return null;
-    if (src.startsWith("http")) return src;
+    if (!src) {
+      console.log('🔍 getSafeImageSrc: src is null/undefined');
+      return null;
+    }
+    
+    if (src.startsWith("http://") || src.startsWith("https://")) {
+      console.log('🔍 getSafeImageSrc: HTTP/HTTPS URL valid');
+      return src;
+    }
+    
+    if (src.startsWith("data:image/")) {
+      console.log('🔍 getSafeImageSrc: Base64 image valid');
+      return src;
+    }
+    
+    if (src.startsWith("blob:")) {
+      console.log('🔍 getSafeImageSrc: Blob URL valid');
+      return src;
+    }
+    
+    console.log('🔍 getSafeImageSrc: Invalid URL format:', src.substring(0, 50));
     return null;
+  };
+
+  const validateAndSetImage = async (imageUrl: string) => {
+    try {
+      setImageLoadError(null);
+      
+      // URL formatını kontrol et
+      const safeUrl = getSafeImageSrc(imageUrl);
+      if (!safeUrl) {
+        throw new Error("Geçersiz resim URL formatı");
+      }
+
+      // Resmin yüklenebilir olup olmadığını kontrol et
+      const img = new window.Image();
+      img.crossOrigin = "anonymous";
+      
+      return new Promise<string>((resolve, reject) => {
+        img.onload = () => {
+          console.log("✅ Resim başarıyla yüklendi:", safeUrl);
+          resolve(safeUrl);
+        };
+        
+        img.onerror = () => {
+          console.error("❌ Resim yüklenemedi:", safeUrl);
+          reject(new Error("Resim yüklenemedi. URL geçersiz olabilir."));
+        };
+        
+        // Timeout ekle (10 saniye)
+        setTimeout(() => {
+          reject(new Error("Resim yükleme zaman aşımı"));
+        }, 10000);
+        
+        img.src = safeUrl;
+      });
+      
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Resim doğrulama hatası";
+      setImageLoadError(errorMsg);
+      throw error;
+    }
   };
 
   const genFromText = async () => {
@@ -77,9 +147,12 @@ export function AtolyeAI() {
       setError("Lütfen bir açıklama yazın.");
       return;
     }
+    
     setIsLoading(true);
     setError("");
+    setImageLoadError(null);
     setGeneratedImageUrl(null);
+    
     try {
       setLoadingStep("Fikriniz ilham panomuza ekleniyor...");
       const r = await fetch("/api/generate-text", {
@@ -87,14 +160,34 @@ export function AtolyeAI() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, material, dimensions }),
       });
+      
+      if (!r.ok) {
+        throw new Error(`API hatası: ${r.status} ${r.statusText}`);
+      }
+      
       const { dataUrl, error } = await r.json();
       if (error) throw new Error(error);
+      
+      if (!dataUrl) {
+        throw new Error('API\'den resim URL\'si alınamadı');
+      }
 
+      setLoadingStep("Resim doğrulanıyor...");
+      
+      // URL'yi doğrula ve resmin yüklenebilir olduğunu kontrol et
+      const validatedUrl = await validateAndSetImage(dataUrl);
+      
       setLoadingStep("Son dokunuşlar yapılıyor...");
-      const safeUrl = getSafeImageSrc(dataUrl);
-      if (safeUrl) setGeneratedImageUrl(await addWatermark(safeUrl));
+      
+      // Watermark ekle
+      const watermarkedUrl = await addWatermark(validatedUrl);
+      setGeneratedImageUrl(watermarkedUrl);
+      
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Hata oluştu.");
+      const errorMessage = e instanceof Error ? e.message : "Bilinmeyen hata oluştu";
+      console.error('❌ Text generation error:', errorMessage);
+      setError(`Tasarım oluşturulurken hata: ${errorMessage}`);
+      setGeneratedImageUrl(null);
     } finally {
       setIsLoading(false);
       setLoadingStep("");
@@ -108,12 +201,24 @@ export function AtolyeAI() {
 
 
   const genFromSketch = async () => {
-    if (!sketchFile) { setError('Lütfen bir eskiz dosyası yükleyin.'); return; }
-    if (!sketchPrompt.trim()) { setError('Lütfen tasarım açıklaması yazın.'); return; }
-    setIsLoading(true); setError(''); setGeneratedImageUrl('');
+    if (!sketchFile) { 
+      setError('Lütfen bir eskiz dosyası yükleyin.'); 
+      return; 
+    }
+    if (!sketchPrompt.trim()) { 
+      setError('Lütfen tasarım açıklaması yazın.'); 
+      return; 
+    }
+    
+    setIsLoading(true); 
+    setError(''); 
+    setImageLoadError(null);
+    setGeneratedImageUrl(null);
+    
     try {
       const { mimeType, data } = await fileToBase64(sketchFile);
       setLoadingStep('Eskiziniz AI ile işleniyor...');
+      
       const r = await fetch('/api/generate-sketch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -127,16 +232,61 @@ export function AtolyeAI() {
           numInferenceSteps: sketchSteps
         })
       });
+      
+      if (!r.ok) {
+        throw new Error(`API hatası: ${r.status} ${r.statusText}`);
+      }
+      
       const { dataUrl, error } = await r.json();
       if (error) throw new Error(error);
-      setLoadingStep('Görsel işleniyor...');
-      setGeneratedImageUrl(await addWatermark(dataUrl));
-      setResultUrl(dataUrl);
-    } catch (e:unknown) {
-      const errorMessage = e instanceof Error ? e.message : 'Hata';
-      setError(errorMessage);
+      
+      if (!dataUrl) {
+        throw new Error('API\'den resim URL\'si alınamadı');
+      }
+      
+      console.log('🔗 API\'den dönen URL:', dataUrl);
+      
+      setLoadingStep('Resim doğrulanıyor...');
+      
+      // URL'yi doğrula ve resmin yüklenebilir olduğunu kontrol et
+      const validatedUrl = await validateAndSetImage(dataUrl);
+      
+      setLoadingStep('Son dokunuşlar yapılıyor...');
+      
+      // Watermark ekle
+      const watermarkedUrl = await addWatermark(validatedUrl);
+      
+      // State'leri güncelle
+      setGeneratedImageUrl(watermarkedUrl);
+      setResultUrl(dataUrl); // Orijinal URL'yi recent images için sakla
+      
+      console.log('✅ Sketch-to-render işlemi başarıyla tamamlandı');
+      console.log('🔗 Generated Image URL:', watermarkedUrl);
+      console.log('🔗 Result URL for recent images:', dataUrl);
+      
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Bilinmeyen hata oluştu';
+      console.error('❌ Sketch generation error:', errorMessage);
+      
+      // Check different error types and provide appropriate messages
+      if (errorMessage.includes('Çok fazla istek')) {
+        setError(`🚫 ${errorMessage}\n\n⏰ Sistem koruması aktif. Lütfen bekleyin ve tekrar deneyin.`);
+      } else if (errorMessage.includes('API servisi yoğun durumda')) {
+        setError(`🔄 ${errorMessage}\n\n💡 İpucu: Yoğun saatlerde işlem süresi uzayabilir. Sabırsızlık göstermeyin!`);
+      } else if (errorMessage.includes('İşlem tamamlanamadı')) {
+        setError(`⏱️ ${errorMessage}\n\n🎯 Öneriler:\n• Daha basit bir eskiz deneyin\n• Prompt'u daha açık yazın\n• Birkaç dakika sonra tekrar deneyin`);
+      } else if (errorMessage.includes('API hatası: 429')) {
+        setError(`🚫 Çok fazla istek gönderildi.\n\n⏰ Lütfen 1 dakika bekleyip tekrar deneyin.\n\n💡 Bu sistem koruması sayesinde herkes adil şekilde hizmet alabilir.`);
+      } else {
+        setError(`Tasarım oluşturulurken hata: ${errorMessage}`);
+      }
+      
+      // Hata durumunda state'leri temizle
+      setGeneratedImageUrl(null);
+      setResultUrl(null);
     } finally {
-      setIsLoading(false); setLoadingStep('');
+      setIsLoading(false); 
+      setLoadingStep('');
     }
   };
 
@@ -168,7 +318,18 @@ export function AtolyeAI() {
                     const f = e.target.files?.[0];
                     setSketchFile(f || null);
                     if (sketchPreviewUrl) URL.revokeObjectURL(sketchPreviewUrl);
-                    if (f) setSketchPreviewUrl(URL.createObjectURL(f));
+                    if (f) {
+                      const newPreviewUrl = URL.createObjectURL(f);
+                      setSketchPreviewUrl(newPreviewUrl);
+                      console.log('📁 Sketch file selected:', {
+                        fileName: f.name,
+                        fileSize: f.size,
+                        previewUrl: newPreviewUrl
+                      });
+                    } else {
+                      setSketchPreviewUrl(null);
+                      console.log('📁 Sketch file cleared');
+                    }
                   }}
                   className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#C0A062]/20 file:text-[#C0A062] hover:file:bg-[#C0A062]/30"
                 />
@@ -292,56 +453,161 @@ export function AtolyeAI() {
           >
             {isLoading ? "Oluşturuluyor..." : "TASARIMI HAYATA GEÇİR"}
           </button>
-          {error && <p className="text-red-500 text-center">{error}</p>}
+          {error && (
+            <div className="text-red-600 text-center p-4 bg-red-50 rounded-lg border border-red-200 shadow-sm">
+              <div className="space-y-2">
+                <p className="font-semibold text-red-700">❌ Hata Oluştu</p>
+                <div className="text-sm whitespace-pre-line text-left bg-white p-3 rounded border border-red-100">
+                  {error}
+                </div>
+                <button
+                  onClick={() => setError('')}
+                  className="mt-2 px-3 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded-full transition"
+                >
+                  Kapat
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {/* Development debug panel */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
+              <details>
+                <summary className="cursor-pointer font-semibold">🔧 Debug Bilgileri</summary>
+                <div className="mt-2 space-y-1">
+                  <div>Generated URL: {generatedImageUrl || 'null'}</div>
+                  <div>Result URL: {resultUrl || 'null'}</div>
+                  <div>Image Load Error: {imageLoadError || 'null'}</div>
+                  <div>Loading: {isLoading ? 'true' : 'false'}</div>
+                  <div>Loading Step: {loadingStep || 'null'}</div>
+                </div>
+              </details>
+            </div>
+          )}
         </div>
 
         {/* Sağ panel */}
         <div className="bg-gray-100 rounded-lg shadow-inner min-h-[500px] md:min-h-full p-4 flex items-center justify-center">
           {isLoading ? (
-            <div className="text-center">
-              <div className="animate-spin h-10 w-10 mx-auto text-[#C0A062] border-4 border-gray-300 border-t-[#C0A062] rounded-full" />
-              <p className="mt-4 font-semibold">
+            <div className="text-center max-w-md">
+              <div className="animate-spin h-12 w-12 mx-auto text-[#C0A062] border-4 border-gray-300 border-t-[#C0A062] rounded-full" />
+              <p className="mt-4 font-semibold text-lg">
                 {loadingStep || "Tasarımınız hazırlanıyor..."}
               </p>
+              {loadingStep.includes('işleniyor') && (
+                <div className="mt-3 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <p className="font-medium text-blue-800">💡 Bilgi:</p>
+                  <p>AI modelimiz eskizinizi analiz ediyor ve tasarım oluşturuyor.</p>
+                  <p>Bu işlem 20-60 saniye sürebilir.</p>
+                </div>
+              )}
+              {loadingStep.includes('doğrulanıyor') && (
+                <div className="mt-3 text-sm text-gray-600">
+                  <p>🔍 Oluşturulan görsel kontrol ediliyor...</p>
+                </div>
+              )}
+            </div>
+          ) : imageLoadError ? (
+            <div className="text-center text-red-500 p-8">
+              <div className="text-6xl mb-4">⚠️</div>
+              <h4 className="font-bold text-xl mb-2">Resim Yükleme Hatası</h4>
+              <p className="mb-4">{imageLoadError}</p>
+              <button
+                onClick={() => {
+                  setImageLoadError(null);
+                  setError('');
+                }}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+              >
+                Tekrar Dene
+              </button>
             </div>
           ) : generatedImageUrl ? (
             <div className="w-full">
-              {isSketchMode && sketchPreviewUrl ? (
-                <BeforeAfterSlider
-                  beforeImage={getSafeImageSrc(sketchPreviewUrl)!}
-                  afterImage={getSafeImageSrc(generatedImageUrl)!}
-                />
-              ) : (
-                <Image
-                  src={generatedImageUrl!}
-                  alt="Oluşturulan Tasarım"
-                  width={800}
-                  height={800}
-                  className="w-full  h-auto object-contain rounded-lg shadow-xl"
-                />
+              {(() => {
+                const beforeSafe = getSafeImageSrc(sketchPreviewUrl);
+                const afterSafe = getSafeImageSrc(generatedImageUrl);
+                
+                console.log('🔍 BeforeAfter Debug:', {
+                  workflow,
+                  isSketchMode,
+                  sketchPreviewUrl: sketchPreviewUrl ? 'EXISTS' : 'NULL',
+                  sketchPreviewUrlLength: sketchPreviewUrl?.length || 0,
+                  generatedImageUrl: generatedImageUrl ? 'EXISTS' : 'NULL', 
+                  generatedImageUrlLength: generatedImageUrl?.length || 0,
+                  beforeSafe: beforeSafe ? 'VALID' : 'INVALID',
+                  afterSafe: afterSafe ? 'VALID' : 'INVALID',
+                  allConditionsMet: isSketchMode && sketchPreviewUrl && beforeSafe && afterSafe,
+                  conditions: {
+                    isSketchMode: !!isSketchMode,
+                    hasSketchPreview: !!sketchPreviewUrl,
+                    beforeSafeValid: !!beforeSafe,
+                    afterSafeValid: !!afterSafe
+                  }
+                });
+                
+                if (isSketchMode && sketchPreviewUrl && beforeSafe && afterSafe) {
+                  return (
+                    <BeforeAfterSlider
+                      beforeImage={beforeSafe}
+                      afterImage={afterSafe}
+                    />
+                  );
+                } else {
+                  return (
+                    <div className="relative">
+                      <Image
+                        src={generatedImageUrl!}
+                        alt="Oluşturulan Tasarım"
+                        width={800}
+                        height={800}
+                        className="w-full h-auto object-contain rounded-lg shadow-xl"
+                        unoptimized
+                        onError={() => {
+                          console.error('❌ Resim görüntülenirken hata oluştu');
+                          setImageLoadError('Resim görüntülenemiyor. Lütfen tekrar deneyin.');
+                          setGeneratedImageUrl(null);
+                        }}
+                        onLoad={() => {
+                          console.log('✅ Resim başarıyla görüntülendi');
+                        }}
+                      />
+                      {/* URL debug info (development only) */}
+                      {process.env.NODE_ENV === 'development' && (
+                        <div className="absolute top-2 left-2 bg-black/70 text-white text-xs p-2 rounded max-w-xs overflow-hidden">
+                          <div className="truncate">URL: {generatedImageUrl}</div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+              })()}
+              
+              {generatedImageUrl && (
+                <div className="mt-4 md:flex justify-center text-center gap-5">
+                  <Link
+                    href={generatedImageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    className="w-full mt-4 font-bold py-3 px-4 rounded-full text-lg inline-block text-center hover:bg-opacity-90 bg-[#2D2D2D] text-white hover:bg-gray-100 hover:text-black outline-1 hover:outline-black cursor-pointer"
+                  >
+                    <MdOutlineFileDownload
+                      size={23}
+                      className="inline mr-2 -mt-1"
+                    />
+                    Tasarımı İndir
+                  </Link>
+                  <Link
+                    href={"https://www.instagram.com/agy_mimarlik/"}
+                    onClick={() => setQuoteModalOpen(true)}
+                    className="w-full mt-4 bg-[#C0A062] text-[#2D2D2D] font-bold py-3 px-4 rounded-full text-lg inline-block text-center hover:bg-opacity-90"
+                  >
+                    Fiyat Teklifi Al
+                  </Link>
+                </div>
               )}
-              <div className="mt-4 md:flex justify-center text-center gap-5">
-                <Link
-                  href={generatedImageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download
-                  className="w-full mt-4 font-bold py-3 px-4 rounded-full text-lg inline-block text-center hover:bg-opacity-90 bg-[#2D2D2D]  text-white hover:bg-gray-100 hover:text-black outline-1 hover:outline-black cursor-pointer"
-                >
-                  <MdOutlineFileDownload
-                    size={23}
-                    className="inline mr-2 -mt-1"
-                  />
-                  Tasarımı İndir
-                </Link>
-                <Link
-                  href={"https://www.instagram.com/agy_mimarlik/"}
-                  onClick={() => setQuoteModalOpen(true)}
-                  className="w-full mt-4 bg-[#C0A062] text-[#2D2D2D] font-bold py-3 px-4 rounded-full text-lg inline-block text-center hover:bg-opacity-90"
-                >
-                  Fiyat Teklifi Al
-                </Link>
-              </div>
             </div>
           ) : (
             <div className="text-center text-gray-500 p-8 select-none h-full flex flex-col justify-center">
@@ -359,7 +625,12 @@ export function AtolyeAI() {
         {/* Buraya en son oluşturulanlar gelsin */}
         {/* Son Üretilenler Alanı */}
         <div className="lg:col-span-2 w-full mt-8 bg-gray-100 p-4 rounded-lg shadow-inner">
-          <h2 className="text-xl font-bold mb-3 ml-1">Son Üretilenler</h2>
+          <h2 className="text-xl font-bold mb-3 ml-1">
+            Son Üretilenler 
+            {process.env.NODE_ENV === 'development' && (
+              <span className="text-xs text-gray-500 ml-2">({recentImages.length} adet)</span>
+            )}
+          </h2>
           <div
             className="flex gap-4 overflow-x-auto pb-3 px-1"
             style={{ maxWidth: "100%" }}
@@ -397,6 +668,15 @@ export function AtolyeAI() {
                         width={96}
                         height={96}
                         className="object-cover w-full h-full"
+                        unoptimized
+                        onError={(e) => {
+                          console.error('❌ Recent image failed to load:', img);
+                          // Temporarily disabled auto-removal due to SSL issues
+                          // setRecentImages((prev) => prev.filter((_, idx) => idx !== i));
+                        }}
+                        onLoad={() => {
+                          console.log('✅ Recent image loaded successfully:', img);
+                        }}
                       />
                       {/* İndir butonu */}
                       <Link
@@ -424,18 +704,43 @@ export function AtolyeAI() {
           {/* Toplu indir butonu */}
           <button
             onClick={async () => {
-              const zip = new JSZip();
-              // Her görseli fetch ile indirip zip'e ekle
-              await Promise.all(
-                recentImages.map(async (img, i) => {
-                  if (!img) return;
-                  const response = await fetch(img);
-                  const blob = await response.blob();
-                  zip.file(`tasarim_${i + 1}.jpg`, blob);
-                })
-              );
-              const content = await zip.generateAsync({ type: "blob" });
-              saveAs(content, "son_uretilenler.zip");
+              try {
+                const zip = new JSZip();
+                const validImages = recentImages.filter(img => img); // Filter out null/undefined
+                
+                if (validImages.length === 0) {
+                  alert('İndirilecek görsel bulunamadı.');
+                  return;
+                }
+                
+                console.log('📦 Starting bulk download for', validImages.length, 'images');
+                
+                // Her görseli fetch ile indirip zip'e ekle
+                await Promise.all(
+                  validImages.map(async (img, i) => {
+                    try {
+                      console.log('⬇️ Downloading image', i + 1, ':', img);
+                      const response = await fetch(img);
+                      if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                      }
+                      const blob = await response.blob();
+                      zip.file(`tasarim_${i + 1}.jpg`, blob);
+                      console.log('✅ Image', i + 1, 'added to zip');
+                    } catch (error) {
+                      console.error('❌ Failed to download image', i + 1, ':', error);
+                      // Continue with other images even if one fails
+                    }
+                  })
+                );
+                
+                const content = await zip.generateAsync({ type: "blob" });
+                saveAs(content, "son_uretilenler.zip");
+                console.log('✅ Bulk download completed');
+              } catch (error) {
+                console.error('❌ Bulk download failed:', error);
+                alert('Toplu indirme sırasında hata oluştu. Lütfen tekrar deneyin.');
+              }
             }}
             className="px-3 py-2 rounded-full text-sm font-semibold hover:bg-opacity-80 bg-[#2D2D2D]  text-white hover:bg-gray-100 hover:text-black outline-1 hover:outline-black cursor-pointer transition"
             title="Tümünü indir"

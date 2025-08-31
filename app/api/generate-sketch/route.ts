@@ -64,8 +64,43 @@ async function processTextToImageResponse(response: Response): Promise<NextRespo
   });
 }
 
+// Simple in-memory rate limiting (for production, use Redis or database)
+const requestTracker = new Map<string, { count: number; lastRequest: number }>();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 3; // Max 3 requests per minute per IP
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const tracker = requestTracker.get(ip) || { count: 0, lastRequest: 0 };
+  
+  // Reset counter if window has passed
+  if (now - tracker.lastRequest > RATE_LIMIT_WINDOW) {
+    tracker.count = 0;
+  }
+  
+  tracker.count++;
+  tracker.lastRequest = now;
+  requestTracker.set(ip, tracker);
+  
+  return tracker.count <= MAX_REQUESTS_PER_WINDOW;
+}
+
 export async function POST(req: Request): Promise<NextResponse<GenerateSketchResponse>> {
   try {
+    console.log('🚀 Generate sketch API called');
+    
+    // Get client IP for rate limiting
+    const forwarded = req.headers.get('x-forwarded-for');
+    const ip = forwarded ? forwarded.split(',')[0] : 'unknown';
+    
+    // Check rate limit
+    if (!checkRateLimit(ip)) {
+      console.log('🚫 Rate limit exceeded for IP:', ip);
+      return NextResponse.json({
+        error: "Çok fazla istek gönderdiniz. Lütfen 1 dakika bekleyip tekrar deneyin."
+      }, { status: 429 });
+    }
+    
     const { 
       mimeType, 
       base64, 
@@ -99,7 +134,7 @@ export async function POST(req: Request): Promise<NextResponse<GenerateSketchRes
     try {
       // Use absolute URL for server-side fetch
       const baseUrl = process.env.NODE_ENV === 'production' 
-        ? 'https://your-domain.com' 
+        ? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://your-domain.com')
         : 'http://localhost:3000';
         
       const uploadResponse = await fetch(`${baseUrl}/api/upload-sketch`, {
@@ -190,17 +225,27 @@ export async function POST(req: Request): Promise<NextResponse<GenerateSketchRes
       console.log('📊 ETA:', data.eta, 'seconds');
       console.log('🔗 Fetch URL:', data.fetch_result);
       
-      // Wait for the image to be ready - increased attempts and wait time
-      const maxAttempts = 20; // Doubled attempts
+      // Enhanced retry logic with exponential backoff
+      const maxAttempts = 12; // Reduced for faster timeout
       let attempts = 0;
+      let consecutiveFailures = 0;
       
       while (attempts < maxAttempts) {
-        const waitTime = data.eta || 30; // Default 30 seconds if eta is undefined
+        const waitTime = data.eta || 30; // Increased default wait time
         console.log(`🔄 Attempt ${attempts + 1}/${maxAttempts} - Waiting ${waitTime} seconds...`);
         
-        // Wait for the estimated time (minimum 20 seconds)
-        const actualWaitTime = Math.max(waitTime, 20);
-        await new Promise(resolve => setTimeout(resolve, actualWaitTime * 1000));
+        // Adaptive wait time based on API response and failures
+        let adaptiveWait;
+        if (consecutiveFailures > 3) {
+          // If multiple failures, wait longer
+          adaptiveWait = Math.min(waitTime + (consecutiveFailures * 10), 60); // Max 60s
+        } else {
+          // Normal progressive wait
+          adaptiveWait = Math.max(waitTime, 15 + (attempts * 3)); // Start at 15s, increase by 3s
+        }
+        
+        console.log(`⏱️ Actual wait time: ${adaptiveWait} seconds (consecutive failures: ${consecutiveFailures})`);
+        await new Promise(resolve => setTimeout(resolve, adaptiveWait * 1000));
         
         // Fetch the result
         const fetchResponse = await fetch(data.fetch_result, {
@@ -219,15 +264,37 @@ export async function POST(req: Request): Promise<NextResponse<GenerateSketchRes
           if (fetchData.status === "success" && fetchData.output && fetchData.output.length > 0) {
             generatedImageUrl = fetchData.output[0];
             console.log('✅ Image ready! Found URL:', generatedImageUrl);
+            consecutiveFailures = 0; // Reset failure counter on success
             break;
           } else if (fetchData.status === "processing") {
             console.log('⏳ Still processing, ETA:', fetchData.eta, 'seconds');
-            data.eta = fetchData.eta;
+            data.eta = fetchData.eta || 30; // Update ETA with fallback
+            consecutiveFailures++; // Increment failure counter
+            
+            // Check for "Try Again" message - indicates API overload
+            if (fetchData.message === "Try Again") {
+              console.log('🔄 API indicates overload, extending wait time...');
+              consecutiveFailures += 2; // Penalize "Try Again" responses more
+            }
+          } else if (fetchData.status === "error") {
+            console.error('❌ Processing failed with error:', fetchData.error || 'Unknown error');
+            throw new Error(fetchData.error || 'Image processing failed');
           } else {
             console.log('⚠️ Unexpected fetch response status:', fetchData.status);
+            console.log('⚠️ Full response:', fetchData);
+            consecutiveFailures++;
           }
         } else {
-          console.log('⚠️ Fetch API failed:', fetchResponse.status);
+          console.error('⚠️ Fetch API failed with status:', fetchResponse.status);
+          const errorText = await fetchResponse.text().catch(() => 'No error details');
+          console.error('⚠️ Error details:', errorText);
+          consecutiveFailures++;
+          
+          // If fetch fails multiple times, break the loop
+          if (consecutiveFailures > 6) {
+            console.error('❌ Too many consecutive failures, breaking loop');
+            break;
+          }
         }
         
         attempts++;
@@ -235,10 +302,25 @@ export async function POST(req: Request): Promise<NextResponse<GenerateSketchRes
       
       if (!generatedImageUrl) {
         console.error('❌ Sketch processing timeout after', maxAttempts, 'attempts');
-        console.error('❌ Please try again or use a different sketch');
+        console.error('❌ Total wait time:', attempts * 20, 'seconds approximately');
+        console.error('❌ Consecutive failures:', consecutiveFailures);
+        
+        let errorMessage = "İşlem tamamlanamadı. ";
+        if (consecutiveFailures > 6) {
+          errorMessage += "API servisi yoğun durumda. Lütfen 5-10 dakika sonra tekrar deneyin.";
+        } else {
+          errorMessage += "Lütfen farklı bir eskiz ile tekrar deneyin veya daha sonra tekrar deneyin.";
+        }
+        
         return NextResponse.json({ 
-          error: "Sketch processing is taking longer than expected. Please try again with a different sketch or try again later." 
-        }, { status: 500 });
+          error: errorMessage,
+          details: {
+            attempts: attempts,
+            consecutiveFailures: consecutiveFailures,
+            totalWaitTime: attempts * 20,
+            suggestion: consecutiveFailures > 6 ? "API_OVERLOAD" : "RETRY_LATER"
+          }
+        }, { status: 408 }); // 408 Request Timeout
       }
       
     } else if (data.output && data.output.length > 0) {
