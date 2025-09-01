@@ -7,6 +7,7 @@ import { fileToBase64 } from "@/lib/fileToBase64";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
 import { QuoteRequestModal } from "./QuoteRequestModal";
 
@@ -15,6 +16,7 @@ import { MdOutlineFileDownload } from "react-icons/md";
 
 import Image from "next/image";
 import Link from "next/link";
+import { toast } from "react-toastify";
 
 const MATERIALS = [
   { name: "Ceviz", img: "/materials/ceviz.png" },
@@ -27,6 +29,11 @@ const MATERIALS = [
   { name: "Suntalam", img: "/materials/suntalam.png" },
   { name: "MDF", img: "/materials/mdf.png" },
 ];
+
+type RecentImage = {
+  generatedProxyUrl?: string;
+  generatedImageUrl?: string;
+};
 
 interface Dimensions {
   w: string;
@@ -58,34 +65,32 @@ export function AtolyeAI() {
   const [sketchPrompt, setSketchPrompt] = useState("");
   const [isQuoteModalOpen, setQuoteModalOpen] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, _setLoading] = useState(false);
   const [imageLoadError, setImageLoadError] = useState<string | null>(null);
 
   const [isImageVisible, setIsImageVisible] = useState(true);
   const [recentImages, setRecentImages] = useState<string[]>([]); // Son oluşturulan görseller
   // Eskiz önizleme URL'si değiştiğinde eski URL'yi temizle
 
-useEffect(() => {
-  console.log("🔍 Recent Images Debug:", {
-    resultUrl,
-    recentImages: recentImages.length,
-    adding: !!resultUrl,
-  });
-
-  if (resultUrl) {
-    setRecentImages((prev) => {
-      if (prev.includes(resultUrl)) return prev;
-      return [resultUrl, ...prev.slice(0, 9)];
+  useEffect(() => {
+    console.log("🔍 Recent Images Debug:", {
+      resultUrl,
+      recentImages: recentImages.length,
+      adding: !!resultUrl,
     });
-  }
-}, [resultUrl]);
 
+    if (resultUrl) {
+      setRecentImages((prev) => {
+        if (prev.includes(resultUrl)) return prev;
+        return [resultUrl, ...prev.slice(0, 9)];
+      });
+    }
+  }, [resultUrl]);
 
-// Yeni resim geldiğinde görünürlüğü resetle
-useEffect(() => {
-  if (generatedImageUrl) setIsImageVisible(true);
-}, [generatedImageUrl]);
-
+  // Yeni resim geldiğinde görünürlüğü resetle
+  useEffect(() => {
+    if (generatedImageUrl) setIsImageVisible(true);
+  }, [generatedImageUrl]);
 
   const getSafeImageSrc = (src?: string | null) => {
     if (!src) {
@@ -216,71 +221,165 @@ useEffect(() => {
     }
   };
 
-  const [aspectRatio, setAspectRatio] = useState("1:1");
-  const [sketchStrength, setSketchStrength] = useState("0.45");
-  const [sketchGuidanceScale, setSketchGuidanceScale] = useState("7.5");
-  const [sketchSteps, setSketchSteps] = useState("31");
-  
-// ------------------- genFromSketch -------------------
-const genFromSketch = async () => {
-  if (!sketchFile) {
-    setError("Lütfen bir eskiz dosyası yükleyin.");
-    return;
-  }
-  if (!sketchPrompt.trim()) {
-    setError("Lütfen tasarım açıklaması yazın.");
-    return;
-  }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [aspectRatio, _setAspectRatio] = useState("1:1");
 
-  setIsLoading(true);
-  setError("");
-  setImageLoadError(null);
-  setGeneratedImageUrl(null);
-  setGeneratedProxyUrl(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [sketchStrength, _setSketchStrength] = useState(0.5);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [sketchGuidanceScale, _setSketchGuidanceScale] = useState(7.5);
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [sketchSteps, _setSketchSteps] = useState(30);
+
+  // ------------------- genFromSketch -------------------
+  const genFromSketch = async () => {
+    if (!sketchFile) {
+      setError("Lütfen bir eskiz dosyası yükleyin.");
+      return;
+    }
+    if (!sketchPrompt.trim()) {
+      setError("Lütfen tasarım açıklaması yazın.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+    setImageLoadError(null);
+    setGeneratedImageUrl(null);
+    setGeneratedProxyUrl(null);
+
+    try {
+      const { mimeType, data } = await fileToBase64(sketchFile);
+      setLoadingStep("Eskiziniz AI ile işleniyor...");
+
+      const r = await fetch("/api/generate-sketch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mimeType,
+          base64: data,
+          notes: sketchPrompt,
+          aspectRatio,
+          strength: sketchStrength,
+          guidanceScale: sketchGuidanceScale,
+          numInferenceSteps: sketchSteps,
+        }),
+      });
+
+      if (!r.ok) throw new Error(`API hatası: ${r.status} ${r.statusText}`);
+
+      const resp = await r.json();
+      if (resp.error) throw new Error(resp.error);
+
+      // 🔹 Proxy varsa onu, yoksa fallback dataUrl kullan
+      const finalUrl = resp.proxy_links?.[0] || resp.dataUrl || null;
+      if (!finalUrl) throw new Error("Resim oluşturulamadı");
+
+      setLoadingStep("Son dokunuşlar yapılıyor...");
+
+      // 🔹 Watermark ekleme
+      const watermarkedUrl = await addWatermark(finalUrl);
+
+      // 🔹 State'leri güncelle
+      setGeneratedImageUrl(watermarkedUrl);
+      setGeneratedProxyUrl(resp.proxy_links?.[0] || null); // Proxy hâlâ orijinal olarak saklanabilir
+      setResultUrl(finalUrl); // Recent images için orijinal URL sakla
+
+      console.log("✅ Watermarklı Image ready", { watermarkedUrl });
+    } catch (e: unknown) {
+      const errorMessage =
+        e instanceof Error ? e.message : "Bilinmeyen hata oluştu";
+      console.error("❌ Sketch generation error:", errorMessage);
+      setError(`Tasarım oluşturulurken hata: ${errorMessage}`);
+      setImageLoadError(errorMessage);
+    } finally {
+      setIsLoading(false);
+      setLoadingStep("");
+    }
+  };
+const handleDownload = async (url: string) => {
   try {
-    const { mimeType, data } = await fileToBase64(sketchFile);
-    setLoadingStep("Eskiziniz AI ile işleniyor...");
+    if (!url) return;
 
-    const r = await fetch("/api/generate-sketch", {
+    const res = await fetch("/api/download", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        mimeType,
-        base64: data,
-        notes: sketchPrompt,
-        aspectRatio,
-        strength: sketchStrength,
-        guidanceScale: sketchGuidanceScale,
-        numInferenceSteps: sketchSteps,
-      }),
+      body: JSON.stringify({ url }),
     });
 
-    if (!r.ok) throw new Error(`API hatası: ${r.status} ${r.statusText}`);
+    const blob = await res.blob();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `tasarim_${Date.now()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
 
-    const resp = await r.json();
-    if (resp.error) throw new Error(resp.error);
-
-    // 🔹 Proxy varsa onu, yoksa fallback dataUrl kullan
-    const finalUrl = resp.proxy_links?.[0] || resp.dataUrl || null;
-    if (!finalUrl) throw new Error("Resim oluşturulamadı");
-
-    setGeneratedImageUrl(finalUrl);
-    setGeneratedProxyUrl(resp.proxy_links?.[0] || null);
-    setResultUrl(finalUrl);
-
-    console.log("✅ Image ready", { finalUrl });
-  } catch (e: unknown) {
-    const errorMessage = e instanceof Error ? e.message : "Bilinmeyen hata oluştu";
-    console.error("❌ Sketch generation error:", errorMessage);
-    setError(`Tasarım oluşturulurken hata: ${errorMessage}`);
-    setImageLoadError(errorMessage);
-  } finally {
-    setIsLoading(false);
-    setLoadingStep("");
+    console.log("✅ Resim indirildi:", url);
+    toast.success("Resim indirildi!");
+  } catch (error) {
+    console.error("İndirme başarısız:", error);
   }
 };
 
+
+  const handleDownloadZip = async (imageUrls: string[]) => {
+    if (!imageUrls || imageUrls.length === 0) return;
+
+    try {
+      const zip = new JSZip();
+
+      for (let i = 0; i < imageUrls.length; i++) {
+        const imgUrl = imageUrls[i];
+        if (!imgUrl) continue;
+
+        // 1️⃣ Resmi al
+        const res = await fetch(imgUrl);
+        const blob = await res.blob();
+
+        // 2️⃣ Blob -> base64
+        const dataUrl: string = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+
+        // 3️⃣ Watermark ekle
+        const watermarkedDataUrl = await addWatermark(dataUrl);
+
+        // 4️⃣ Zip’e ekle (base64 olarak)
+        const base64 = watermarkedDataUrl.split(",")[1];
+        zip.file(`tasarim_${i + 1}.jpg`, base64, { base64: true });
+      }
+
+      // 5️⃣ Zip blob oluştur ve indir
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      saveAs(zipBlob, `tasarimlar_${Date.now()}.zip`);
+    } catch (error) {
+      console.error("Toplu indirme başarısız:", error);
+      toast.error("Toplu indirme sırasında bir hata oluştu.");
+    }
+  };
+
+  function downloadImage(url: string, filename: string) {
+    fetch(url)
+      .then((res) => res.blob())
+      .then((blob) => {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      })
+      .catch((err) => console.error("❌ Download failed:", err));
+  }
+
+  // ------------------- workspace -------------------
 
   const workspace = (isSketchMode = false) => (
     <div className="w-full max-w-7xl mx-auto bg-white/50 shadow-2xl rounded-2xl backdrop-blur-lg p-4 sm:p-8">
@@ -347,6 +446,13 @@ const genFromSketch = async () => {
                   onChange={(e) => setSketchPrompt(e.target.value)}
                   className="w-full p-3 border rounded-md h-24 bg-transparent"
                 />
+                <div className="mt-2 text-sm text-gray-600 bg-yellow-50 border-l-4 border-yellow-400 p-2 rounded">
+                  {" "}
+                  <strong>İpucu:</strong> Tasarımınızı ne kadar detaylı ve
+                  açıklayıcı tarif ederseniz, o kadar iyi sonuçlar elde
+                  edersiniz. Örneğin; stil, renk, malzeme gibi detayları
+                  ekleyebilirsiniz.{" "}
+                </div>
               </div>
             </>
           ) : (
@@ -463,7 +569,7 @@ const genFromSketch = async () => {
           )}
 
           {/* Development debug panel */}
-          {process.env.NODE_ENV === "development" && (
+          {/* {process.env.NODE_ENV === "development" && (
             <div className="mt-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
               <details>
                 <summary className="cursor-pointer font-semibold">
@@ -478,80 +584,93 @@ const genFromSketch = async () => {
                 </div>
               </details>
             </div>
-          )}
+          )} */}
         </div>
 
-    {/* // ------------------- Sağ panel ------------------- */}
-<div className="bg-gray-100 rounded-lg shadow-inner min-h-[500px] md:min-h-full p-4 flex items-center justify-center">
-  {isLoading ? (
-    <div className="text-center max-w-md">
-      <div className="animate-spin h-12 w-12 mx-auto text-[#C0A062] border-4 border-gray-300 border-t-[#C0A062] rounded-full" />
-      <p className="mt-4 font-semibold text-lg">
-        {loadingStep || "Tasarımınız hazırlanıyor..."}
-      </p>
-    </div>
-  ) : imageLoadError ? (
-    <div className="text-center text-red-500 p-8">
-      <div className="text-6xl mb-4">⚠️</div>
-      <h4 className="font-bold text-xl mb-2">Resim Yükleme Hatası</h4>
-      <p className="mb-4">{imageLoadError}</p>
-      <button
-        onClick={() => {
-          setImageLoadError(null);
-          setError("");
-        }}
-        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-      >
-        Tekrar Dene
-      </button>
-    </div>
-  ) : generatedImageUrl ? (
-    <div className="w-full">
-     {/* // Resim alanı */}
-{generatedImageUrl && isImageVisible && (
-  <div className="relative w-full">
-    {/* Çarpı butonu */}
-    <button
-      onClick={() => setIsImageVisible(false)}
-      className="absolute top-2 right-2 z-10 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600"
-    >
-      ✕
-    </button>
+        {/* // ------------------- Sağ panel ------------------- */}
+        <div className="bg-gray-100 rounded-lg shadow-inner min-h-[500px] md:min-h-full p-4 flex items-center justify-center">
+          {isLoading ? (
+            <div className="text-center max-w-md">
+              <div className="animate-spin h-12 w-12 mx-auto text-[#C0A062] border-4 border-gray-300 border-t-[#C0A062] rounded-full" />
+              <p className="mt-4 font-semibold text-lg">
+                {loadingStep || "Tasarımınız hazırlanıyor..."}
+              </p>
+            </div>
+          ) : imageLoadError ? (
+            <div className="text-center text-red-500 p-8">
+              <div className="text-6xl mb-4">⚠️</div>
+              <h4 className="font-bold text-xl mb-2">Resim Yükleme Hatası</h4>
+              <p className="mb-4">{imageLoadError}</p>
+              <button
+                onClick={() => {
+                  setImageLoadError(null);
+                  setError("");
+                }}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+              >
+                Tekrar Dene
+              </button>
+            </div>
+          ) : generatedImageUrl ? (
+            <div className="w-full">
+              {/* // Resim alanı */}
+              {isImageVisible && (
+                <div className="relative w-full">
+                  {/* Çarpı butonu */}
+                  <button
+                    onClick={() => setIsImageVisible(false)}
+                    className="absolute top-2 right-2 z-10 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600"
+                  >
+                    ✕
+                  </button>
 
-    <Image
-      src={generatedImageUrl}
-      alt="Oluşturulan Tasarım"
-      width={800}
-      height={800}
-      className="w-full h-auto object-contain rounded-lg shadow-xl"
-      onError={() => setImageLoadError("Resim görüntülenemiyor. Lütfen tekrar deneyin.")}
-    />
-  </div>
-)}
-      <div className="mt-4 md:flex justify-center text-center gap-5">
-        <Link
-          href={generatedProxyUrl || generatedImageUrl}
-          target="_blank"
-          download
-          className="w-full mt-4 font-bold py-3 px-4 rounded-full text-lg inline-block text-center bg-[#2D2D2D] text-white hover:bg-gray-100 hover:text-black"
-        >
-          <MdOutlineFileDownload size={23} className="inline mr-2 -mt-1" />
-          Tasarımı İndir
-        </Link>
-      </div>
-    </div>
-  ) : (
-    <div className="text-center text-gray-500 p-8 select-none h-full flex flex-col justify-center">
-      <h4 className="font-serif text-2xl my-2">Hayalinizdeki Tasarım Alanı</h4>
-      <p>
-        Sol paneli kullanarak fikrinizi hayata geçirin. Oluşturulan tasarım
-        burada görünecek.
-      </p>
-    </div>
-  )}
-</div>
+                  <Image
+                    src={generatedImageUrl}
+                    alt="Oluşturulan Tasarım"
+                    width={800}
+                    height={800}
+                    className="w-full h-auto object-contain rounded-lg shadow-xl"
+                    onError={() =>
+                      setImageLoadError(
+                        "Resim görüntülenemiyor. Lütfen tekrar deneyin."
+                      )
+                    }
+                  />
+                </div>
+              )}
 
+              {/* Tasarımı İndir Butonu */}
+              {isImageVisible && (generatedImageUrl || generatedProxyUrl) && (
+                <div className="mt-4 md:flex justify-center text-center gap-5">
+                 <button
+                  onClick={() => {
+                    const url = generatedImageUrl ?? generatedProxyUrl; // undefined ise diğerini al
+                    if (url) handleDownload(url); // sadece url varsa indir
+                  }}
+                  className="w-full mt-4 font-bold py-3 px-4 rounded-full text-lg inline-block text-center bg-[#2D2D2D] text-white hover:bg-gray-100 hover:outline-1 hover:outline-gray-800 hover:text-black"
+                >
+                  <MdOutlineFileDownload
+                    size={23}
+                    className="inline mr-2 -mt-1"
+                  />
+                  Tasarımı İndir
+                  </button>
 
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center text-gray-500 p-8 select-none h-full flex flex-col justify-center">
+              <h4 className="font-serif text-2xl my-2">
+                Hayalinizdeki Tasarım Alanı
+              </h4>
+              <p>
+                Sol paneli kullanarak fikrinizi hayata geçirin. Oluşturulan
+                tasarım burada görünecek.
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Son Üretilenler Alanı */}
         <div className="lg:col-span-2 w-full mt-8 bg-gray-100 p-4 rounded-lg shadow-inner">
@@ -576,11 +695,11 @@ const genFromSketch = async () => {
               >
                 {/* Silme butonu */}
                 <button
-                  onClick={() => {
+                  onClick={() =>
                     setRecentImages((prev) =>
                       prev.filter((_, idx) => idx !== i)
-                    );
-                  }}
+                    )
+                  }
                   className="absolute top-1 right-1 bg-red-500 hover:bg-red-700 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow"
                   title="Sil"
                   tabIndex={0}
@@ -596,25 +715,22 @@ const genFromSketch = async () => {
                   height={96}
                   className="object-cover w-full h-full"
                   unoptimized
-                  onError={() => {
-                    console.error("❌ Recent image failed to load:", img);
-                  }}
-                  onLoad={() => {
-                    console.log("✅ Recent image loaded successfully:", img);
-                  }}
+                  onError={() =>
+                    console.error("❌ Recent image failed to load:", img)
+                  }
+                  onLoad={() =>
+                    console.log("✅ Recent image loaded successfully:", img)
+                  }
                 />
 
                 {/* İndir butonu */}
-                <Link
-                  href={img}
-                  download={`tasarim_${i + 1}.jpg`}
-                  className="absolute bottom-1 right-1  bg-[#C0A062] hover:bg-[#A18E4A] text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow"
+                <button
+                  onClick={() => handleDownload(img)}
+                  className="absolute bottom-1 right-1 bg-[#C0A062] hover:bg-[#A18E4A] text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow"
                   title="İndir"
-                  tabIndex={0}
-                  onClick={(e) => e.stopPropagation()}
                 >
                   <MdOutlineFileDownload size={16} />
-                </Link>
+                </button>
               </div>
             ))}
           </div>
@@ -623,56 +739,7 @@ const genFromSketch = async () => {
         <div className="flex gap-2 justify-end w-full lg:col-span-2">
           {/* Toplu indir butonu */}
           <button
-            onClick={async () => {
-              try {
-                const zip = new JSZip();
-                const validImages = recentImages.filter((img) => img); // Filter out null/undefined
-
-                if (validImages.length === 0) {
-                  alert("İndirilecek görsel bulunamadı.");
-                  return;
-                }
-
-                console.log(
-                  "📦 Starting bulk download for",
-                  validImages.length,
-                  "images"
-                );
-
-                // Her görseli fetch ile indirip zip'e ekle
-                await Promise.all(
-                  validImages.map(async (img, i) => {
-                    try {
-                      console.log("⬇️ Downloading image", i + 1, ":", img);
-                      const response = await fetch(img);
-                      if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                      }
-                      const blob = await response.blob();
-                      zip.file(`tasarim_${i + 1}.jpg`, blob);
-                      console.log("✅ Image", i + 1, "added to zip");
-                    } catch (error) {
-                      console.error(
-                        "❌ Failed to download image",
-                        i + 1,
-                        ":",
-                        error
-                      );
-                      // Continue with other images even if one fails
-                    }
-                  })
-                );
-
-                const content = await zip.generateAsync({ type: "blob" });
-                saveAs(content, "son_uretilenler.zip");
-                console.log("✅ Bulk download completed");
-              } catch (error) {
-                console.error("❌ Bulk download failed:", error);
-                alert(
-                  "Toplu indirme sırasında hata oluştu. Lütfen tekrar deneyin."
-                );
-              }
-            }}
+            onClick={() => handleDownloadZip(recentImages)}
             className="px-3 py-2 rounded-full text-sm font-semibold hover:bg-opacity-80 bg-[#2D2D2D]  text-white hover:bg-gray-100 hover:text-black outline-1 hover:outline-black cursor-pointer transition"
             title="Tümünü indir"
           >
@@ -680,7 +747,7 @@ const genFromSketch = async () => {
             Tümünü İndir
           </button>
           {/* Excel olarak indir butonu */}
-          <button
+          {/* <button
             onClick={() => {
               // Basit CSV (Excel açabilir)
               const csv =
@@ -700,7 +767,7 @@ const genFromSketch = async () => {
             title="Excel olarak indir"
           >
             Excel Olarak Al
-          </button>
+          </button> */}
         </div>
 
         {/* Alt not */}
@@ -726,7 +793,7 @@ const genFromSketch = async () => {
             ATOLYE AI
           </h2>
           <p className="text-lg text-gray-600 mt-2">
-            {workflow ? "Tasarım masanız hazır." : "Bir yöntem seçin."}
+            {workflow ? "Tasarım hazır hazır." : "Bir yöntem seçin."}
           </p>
         </div>
 
