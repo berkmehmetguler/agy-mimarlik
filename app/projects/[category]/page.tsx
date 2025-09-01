@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 
 interface Category {
   title: string;
+  category: string;
+  coverImage: string;
   galleryDescription: string;
   sections: Array<{
     id: string;

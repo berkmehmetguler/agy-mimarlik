@@ -5,11 +5,10 @@ import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
 import UserDropdown from "./UserDropDown";
-import { PiBrainBold } from "react-icons/pi";
-import { RiLoginBoxLine, RiMenu3Fill, RiCloseLargeFill } from "react-icons/ri";
-import Link from "next/link";
 
-import { RiCompasses2Line } from "react-icons/ri";
+import { RiLoginBoxLine, RiMenu3Fill, RiCloseLargeFill, RiCompasses2Line } from "react-icons/ri";
+import Link from "next/link";
+import { usePremiumAlert } from "@/components/PremiumAlert";
 
 type HeaderProps = {
   defaultBlack?: boolean;
@@ -23,6 +22,7 @@ export function Header({ defaultBlack = false }: HeaderProps) {
   const [session, setSession] = useState<Session | null>(null);
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
+  const { success, AlertComponent } = usePremiumAlert();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -36,13 +36,10 @@ export function Header({ defaultBlack = false }: HeaderProps) {
     };
     checkSession();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-      }
-    );
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+    });
 
-    // Menü dışında tıklama kontrolü
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setIsMenuOpen(false);
@@ -59,126 +56,152 @@ export function Header({ defaultBlack = false }: HeaderProps) {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.push("/");
+    success(
+      "Güle Güle! 👋",
+      "Başarıyla çıkış yaptınız. Tekrar görüşmek üzere!",
+      2500
+    );
+    setTimeout(() => {
+      router.push("/");
+    }, 2500);
   };
+
+  const brandIsLight = !(scrolled || isMenuOpen || defaultBlack);
 
   return (
     <header
       ref={menuRef}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         scrolled || isMenuOpen || defaultBlack
-          ? "bg-[#F3F0E9] text-black shadow-md"
+          ? "bg-white/95 backdrop-blur-md text-[#2D2D2D] shadow-2xl border-b border-[#C0A062]/10"
           : "bg-transparent"
       }`}
     >
-      <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
+      <nav className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center overflow-visible">
+        {/* Logo */}
         <Link
-          href={"/"}
-          className="text-4xl md:text-6xl font-serif font-bold cursor-pointer text-[#2D2D2D]"
+          href="/"
           onClick={() => setIsMenuOpen(false)}
+          className={`text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-serif font-bold transition-all duration-500 hover:scale-105 relative ${
+            brandIsLight ? "text-white drop-shadow-2xl" : "text-[#2D2D2D]"
+          }`}
         >
-          AGY
+          <span className="relative">
+            <span className="absolute inset-0 bg-gradient-to-r from-[#C0A062]/20 to-[#D4B876]/20 blur-xl opacity-0 hover:opacity-100 transition-opacity duration-500 rounded-lg" />
+            <span className="relative">AGY</span>
+          </span>
         </Link>
 
-        {/* Desktop Menü */}
-        <ul className="hidden lg:flex items-center space-x-8 mx-auto underline-offset-2 decoration-2 decoration-transparent hover:decoration-[#C0A062] transition-all uppercase">
+        {/* Desktop Menü (yapı ilk kod gibi, stil ikinciye uyumlu) */}
+        <ul className="hidden lg:flex items-center space-x-12 mx-auto">
           <li>
             <Link
               href="/projects"
               onClick={() => setIsMenuOpen(false)}
-              className={`font-bold text-lg tracking-widest transition-colors duration-150 easy-in-out ${
+              className={`relative font-bold text-base tracking-wide transition-all duration-300 group ${
                 isHomePage
-                  ? scrolled
-                    ? "text-black"
-                    : "text-white"
-                  : "text-black"
+                  ? brandIsLight
+                    ? "text-white"
+                    : "text-[#2D2D2D]"
+                  : "text-[#2D2D2D]"
               } hover:text-[#C0A062]`}
             >
               Projelerimiz
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-[#C0A062] to-[#D4B876] group-hover:w-full transition-all duration-300" />
             </Link>
           </li>
+
           <li>
             <Link
               href="/atolye"
               onClick={() => setIsMenuOpen(false)}
-              className="font-extrabold text-md flex text-[#C0A062] p-4 gap-2 rounded-full hover:decoration-[#6a5e46] underline hover:underline-offset-1 hover:scale-110 ease-in-out hover:opacity-80 transition-opacity"
+              className="group relative bg-gradient-to-r from-[#C0A062] to-[#D4B876] text-white font-bold px-6 py-3 rounded-full text-sm hover:from-[#D4B876] hover:to-[#C0A062] transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl inline-flex items-center gap-2 border border-[#C0A062]/20"
             >
-              <PiBrainBold
-              className="hidden"
-                title="ATOLYE AI"
-                size={25}
-                
-              />{" "}
-              <RiCompasses2Line
-               className="flex"
-                title="ATOLYE AI"
-                size={25}
-         
-              />
-              ATOLYE AI
+              <div className="absolute inset-0 bg-white/10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <span className="relative flex items-center gap-2">
+                <RiCompasses2Line size={18} className="group-hover:rotate-12 transition-transform duration-300" />
+                ATOLYE AI
+              </span>
             </Link>
           </li>
+
           <li>
             <Link
               href="/contact"
               onClick={() => setIsMenuOpen(false)}
-              className={`font-bold text-lg tracking-widest transition-colors duration-150 easy-in-out ${
+              className={`relative font-bold text-base tracking-wide transition-all duration-300 group ${
                 isHomePage
-                  ? scrolled
-                    ? "text-black"
-                    : "text-white"
-                  : "text-black"
+                  ? brandIsLight
+                    ? "text-white"
+                    : "text-[#2D2D2D]"
+                  : "text-[#2D2D2D]"
               } hover:text-[#C0A062]`}
             >
               İletişim
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-[#C0A062] to-[#D4B876] group-hover:w-full transition-all duration-300" />
             </Link>
           </li>
         </ul>
 
-        {/* Sağ buton */}
-        <div className="hidden lg:flex">
-          {session && <UserDropdown />}
+        {/* Sağ taraf (ilk koddaki kullanım korunur) */}
+        <div className="hidden lg:flex items-center gap-4">
+          {session && (
+            <div className="relative z-50">
+              <UserDropdown />
+            </div>
+          )}
+
           {session ? (
             <Link
               href="/"
-              onClick={handleLogout}
-              className="px-6 py-2 text-bold text-xl bg-[#C0A062] text-white rounded-full font-medium hover:bg-[#A18E4A] transition"
+              onClick={(e) => {
+                e.preventDefault();
+                handleLogout();
+              }}
+              className="group relative bg-gradient-to-r from-[#2D2D2D] to-[#4A4A4A] text-white font-bold px-6 py-3 rounded-full text-sm hover:from-[#C0A062] hover:to-[#D4B876] transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
             >
-              Çıkış Yap
+              <div className="absolute inset-0 bg-white/10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <span className="relative">Çıkış Yap</span>
             </Link>
           ) : (
             <Link
               href="/login"
               onClick={() => setIsMenuOpen(false)}
-              className="flex bg-[#C0A062] text-[#2D2D2D] font-bold md:py-4 md:px-8 rounded-full text-lg uppercase hover:opacity-90 transition-all hover:shadow-lg hover:outline-1 hover:decoration-white hover:text-white items-center gap-2"
+              className="group relative bg-white/90 backdrop-blur-sm text-[#2D2D2D] border-2 border-[#C0A062]/30 font-bold px-6 py-3 rounded-full text-sm hover:bg-gradient-to-r hover:from-[#C0A062] hover:to-[#D4B876] hover:text-white hover:border-[#C0A062] transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl inline-flex items-center gap-2"
             >
-              <RiLoginBoxLine size={25} /> Giriş Yap
+              <div className="absolute inset-0 bg-gradient-to-r from-[#C0A062]/5 to-[#D4B876]/5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <span className="relative flex items-center gap-2">
+                <RiLoginBoxLine size={18} className="group-hover:scale-110 transition-transform duration-300" />
+                Giriş Yap
+              </span>
             </Link>
           )}
         </div>
 
-        <div className="flex items-center">
+        {/* Mobil sağ taraf */}
+        <div className="flex items-center gap-2">
           {session && (
-            <div className="md:hidden">
+            <div className="md:hidden relative z-50">
               <UserDropdown />
             </div>
           )}
           <button
-            className="lg:hidden z-50"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className={`lg:hidden z-50 transition-all duration-300 p-2 rounded-lg ${
+              brandIsLight ? "text-white drop-shadow-lg" : "text-[#2D2D2D]"
+            }`}
+            onClick={() => setIsMenuOpen((s) => !s)}
             aria-label="Menüyü aç/kapat"
             aria-expanded={isMenuOpen}
           >
-            {isMenuOpen ? (
-              <RiCloseLargeFill size={25} />
-            ) : (
-              <RiMenu3Fill size={25} />
-            )}
+            {isMenuOpen ? <RiCloseLargeFill size={24} /> : <RiMenu3Fill size={24} />}
           </button>
         </div>
       </nav>
 
-      {/* Mobil Menü */}
+      {/* Premium Alert */}
+      <AlertComponent />
+
+      {/* Mobil Menü (ilk koddaki içerik, ikinci koddaki stil) */}
       <div
         className={`absolute top-full left-0 w-full bg-[#F3F0E9] lg:hidden overflow-hidden transition-all duration-300 ease-in-out ${
           isMenuOpen ? "max-h-screen shadow-md" : "max-h-0"
@@ -214,8 +237,7 @@ export function Header({ defaultBlack = false }: HeaderProps) {
           </li>
           <li>
             {session ? (
-              <Link
-                href="/"
+              <button
                 onClick={() => {
                   handleLogout();
                   setIsMenuOpen(false);
@@ -223,7 +245,7 @@ export function Header({ defaultBlack = false }: HeaderProps) {
                 className="px-6 py-2 bg-[#C0A062] text-white rounded-full font-medium hover:bg-[#A18E4A] transition"
               >
                 Çıkış Yap
-              </Link>
+              </button>
             ) : (
               <Link
                 href="/login"
